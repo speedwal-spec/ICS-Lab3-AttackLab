@@ -1,0 +1,53 @@
+Breakpoint 1 at 0x4016d6
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+
+Breakpoint 1, 0x00000000004016d6 in input ()
+0x00000000004016d7 in input ()
+0x00000000004016da in input ()
+0x00000000004016e1 in input ()
+0x00000000004016ea in input ()
+0x00000000004016ee in input ()
+canary before input: $1 = 0xf190bec2854eaa00
+Breakpoint 2 at 0x4017db
+
+Breakpoint 2, 0x00000000004017db in input ()
+canary after 320-byte input: $2 = 0x4343434343434343
+TLS canary: $3 = 0xf190bec2854eaa00
+
+### continue: the canary check must abort the process
+*** stack smashing detected ***: terminated
+
+Program received signal SIGABRT, Aborted.
+__pthread_kill_implementation (threadid=<optimized out>, signo=6, no_tid=0) at ./nptl/pthread_kill.c:44
+warning: 44	./nptl/pthread_kill.c: No such file or directory
+
+### inferior state
+rip            0x7f7888aa61ac      0x7f7888aa61ac <__GI___pthread_kill+284>
+#0  __pthread_kill_implementation (threadid=<optimized out>, signo=6, no_tid=0) at ./nptl/pthread_kill.c:44
+#1  __pthread_kill_internal (threadid=<optimized out>, signo=6) at ./nptl/pthread_kill.c:89
+#2  __GI___pthread_kill (threadid=<optimized out>, signo=signo@entry=6) at ./nptl/pthread_kill.c:100
+#3  0x00007f7888a45b7e in __GI_raise (sig=sig@entry=6) at ../sysdeps/posix/raise.c:26
+#4  0x00007f7888a288ec in __GI_abort () at ./stdlib/abort.c:77
+#5  0x00007f7888a29979 in __libc_message_impl (vma_name=vma_name@entry=0x7f7888bdb569 "glibc: fatal", fmt=fmt@entry=0x7f7888bdea58 "*** %s ***: terminated\n") at ../sysdeps/posix/libc_fatal.c:138
+#6  0x00007f7888b43ed0 in __libc_message_wrapper (vmaname=0x7f7888bdb569 "glibc: fatal", fmt=0x7f7888bdea58 "*** %s ***: terminated\n") at ../include/stdio.h:203
+#7  __GI___fortify_fail (msg=msg@entry=0x7f7888bdea70 "stack smashing detected") at ./debug/fortify_fail.c:24
+#8  0x00007f7888b45274 in __stack_chk_fail () at ./debug/stack_chk_fail.c:24
+#9  0x00000000004017f3 in input ()
+#10 0x4141414141414141 in ?? ()
+#11 0x4141414141414141 in ?? ()
+#12 0x4141414141414141 in ?? ()
+#13 0x4141414141414141 in ?? ()
+#14 0x4141414141414141 in ?? ()
+#15 0x4141414141414141 in ?? ()
+#16 0x4141414141414141 in ?? ()
+#17 0x4141414141414141 in ?? ()
+#18 0x4141414141414141 in ?? ()
+#19 0x4141414141414141 in ?? ()
+#20 0x4141414141414141 in ?? ()
+#21 0x4141414141414141 in ?? ()
+#22 0x4141414141414141 in ?? ()
+#23 0x4141414141414141 in ?? ()
+#24 0x4141414141414141 in ?? ()
+#25 0x00007f7888c78000 in _GLOBAL_OFFSET_TABLE_ () from /lib64/ld-linux-x86-64.so.2
+#26 0x0000000000000000 in ?? ()

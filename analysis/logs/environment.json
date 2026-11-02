@@ -1,0 +1,11 @@
+{
+  "uname": "6.18.33.2-microsoft-standard-WSL2",
+  "distro": "\"Ubuntu 26.04 LTS\"",
+  "gcc": "gcc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+  "gdb": "GNU gdb (Ubuntu 17.1-2ubuntu1) 17.1",
+  "python": "Python 3.14.4",
+  "libc": "ldd (Ubuntu GLIBC 2.43-2ubuntu2.4) 2.43",
+  "objdump": "GNU objdump (GNU Binutils for Ubuntu) 2.46",
+  "aslr": "2",
+  "gdb_default_disable_randomization": "on"
+}

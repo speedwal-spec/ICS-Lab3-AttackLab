@@ -1,0 +1,86 @@
+[
+  {
+    "length": 0,
+    "rc": 0,
+    "stdout": "Enter an expression (length up to 15):\n42_is_The_Ànswer\n",
+    "stderr": ""
+  },
+  {
+    "length": 1,
+    "rc": 0,
+    "stdout": "1\nEnter an expression (length up to 15):\nExecuting: echo $((1))\nEnter an expression (length up to 15):\n42_is_The_Ànswer\n",
+    "stderr": ""
+  },
+  {
+    "length": 3,
+    "rc": 0,
+    "stdout": "111\nEnter an expression (length up to 15):\nExecuting: echo $((111))\nEnter an expression (length up to 15):\n42_is_The_Ànswer\n",
+    "stderr": ""
+  },
+  {
+    "length": 8,
+    "rc": 0,
+    "stdout": "11111111\nEnter an expression (length up to 15):\nExecuting: echo $((11111111))\nEnter an expression (length up to 15):\n42_is_The_Ànswer\n",
+    "stderr": ""
+  },
+  {
+    "length": 15,
+    "rc": 0,
+    "stdout": "111111111111111\nEnter an expression (length up to 15):\nExecuting: echo $((111111111111111))\nEnter an expression (length up to 15):\n42_is_The_Ànswer\n",
+    "stderr": ""
+  },
+  {
+    "length": 16,
+    "rc": 0,
+    "stdout": "111111111111111\nEnter an expression (length up to 15):\nExecuting: echo $((111111111111111))\nEnter an expression (length up to 15):\n42_is_The_Ànswer\n",
+    "stderr": ""
+  },
+  {
+    "length": 20,
+    "rc": 0,
+    "stdout": "111111111111111\nEnter an expression (length up to 15):\nExecuting: echo $((111111111111111))\nEnter an expression (length up to 15):\n42_is_The_Ànswer\n",
+    "stderr": ""
+  },
+  {
+    "length": 23,
+    "rc": 0,
+    "stdout": "111111111111111\nEnter an expression (length up to 15):\nExecuting: echo $((111111111111111))\nEnter an expression (length up to 15):\n42_is_The_Ànswer\n",
+    "stderr": ""
+  },
+  {
+    "length": 24,
+    "rc": -7,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "length": 31,
+    "rc": -11,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "length": 47,
+    "rc": -11,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "length": 48,
+    "rc": -11,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "length": 64,
+    "rc": -11,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "length": 200,
+    "rc": -11,
+    "stdout": "",
+    "stderr": ""
+  }
+]

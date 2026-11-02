@@ -1,0 +1,17 @@
+* text=auto eol=lf
+
+*.py text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.sh text eol=lf
+
+attack/dark-calc binary
+attack/dark-calc-nx binary
+attack/dark-log binary
+src/aslr.c text eol=lf
+attack/malware text eol=lf
+
+*.pdf binary
+*.docx binary
+*.png binary

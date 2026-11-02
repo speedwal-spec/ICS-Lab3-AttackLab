@@ -1,0 +1,38 @@
+[
+  {
+    "payload": "payload.py",
+    "target": "dark-calc",
+    "bytes": 33,
+    "generator_rc": 0,
+    "target_rc": -7,
+    "pass": true,
+    "expected": "You have successfully detonated the bomb! Congratulations!"
+  },
+  {
+    "payload": "payload_dark.py",
+    "target": "dark-calc",
+    "bytes": 41,
+    "generator_rc": 0,
+    "target_rc": 0,
+    "pass": true,
+    "expected": "Hope A will be your grade!"
+  },
+  {
+    "payload": "payload_rop.py",
+    "target": "dark-calc-nx",
+    "bytes": 57,
+    "generator_rc": 0,
+    "target_rc": 0,
+    "pass": true,
+    "expected": "Hope A will be your grade!"
+  },
+  {
+    "payload": "payload_canary.py",
+    "target": "dark-log",
+    "bytes": 261,
+    "generator_rc": 0,
+    "target_rc": -11,
+    "pass": true,
+    "expected": "Hope A will be your grade!"
+  }
+]

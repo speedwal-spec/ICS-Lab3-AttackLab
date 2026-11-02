@@ -1,0 +1,90 @@
+Breakpoint 1 at 0x401977
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+
+Breakpoint 1, 0x0000000000401977 in input ()
+
+### stopped at input() entry, before the prologue runs
+rip            0x401977            0x401977 <input>
+rbp            0x721000800ff0      0x721000800ff0
+rsp            0x721000800fe8      0x721000800fe8
+rdi            0x1                 1
+rsi            0x7ffc2cc212b8      140721059402424
+
+### instructions at entry
+=> 0x401977 <input>:	push   %rbp
+   0x401978 <input+1>:	mov    %rsp,%rbp
+   0x40197b <input+4>:	sub    $0x10,%rsp
+   0x40197f <input+8>:	mov    $0xf,%esi
+   0x401984 <input+13>:	mov    $0x401ce8,%edi
+   0x401989 <input+18>:	mov    $0x0,%eax
+   0x40198e <input+23>:	call   0x4017f0 <printf@plt>
+   0x401993 <input+28>:	lea    -0x10(%rbp),%rax
+
+### caller frame (main) before the prologue
+#1  0x0000000000401ad1 in main ()
+rbp            0x721000800ff0      0x721000800ff0
+rsp            0x721000800ff0      0x721000800ff0
+#0  0x0000000000401977 in input ()
+
+### single-step the prologue: push rbp; mov rbp,rsp; sub rsp,0x10
+0x0000000000401978 in input ()
+0x000000000040197b in input ()
+0x000000000040197f in input ()
+rbp            0x721000800fe0      0x721000800fe0
+rsp            0x721000800fd0      0x721000800fd0
+
+### frame geometry
+expression buffer      = rbp-0x10 = 0x721000800fd0
+saved rbp slot         = rbp      = 0x721000800fe0
+saved return address   = rbp+8    = 0x721000800fe8
+fixed_stack_top        = 0x721000801000
+buffer-to-guard-page   = 48 bytes
+
+### stack contents at the frame before gets()
+0x721000800fd0:	0x0000000000000000	0x0000000000000000
+0x721000800fe0:	0x0000721000800ff0	0x0000000000401ad1
+0x721000800ff0:	0x00007ffc2cc21230	0x0000000000401c1f
+
+### break after gets() and read the buffer back
+Breakpoint 2 at 0x40199f
+
+Breakpoint 2, 0x000000000040199f in input ()
+rbp            0x721000800fe0      0x721000800fe0
+rsp            0x721000800fd0      0x721000800fd0
+buffer contents: 0x721000800fd0:	"ABCDEFGH"
+saved rbp value = 0x721000800ff0
+return address  = 0x401ad1
+
+### backtrace
+#0  0x000000000040199f in input ()
+#1  0x0000000000401ad1 in main ()
+
+### main's machine code with raw bytes
+Dump of assembler code for function main:
+   0x0000000000401ac3 <+0>:	55                 	push   %rbp
+   0x0000000000401ac4 <+1>:	48 89 e5           	mov    %rsp,%rbp
+   0x0000000000401ac7 <+4>:	b8 00 00 00 00     	mov    $0x0,%eax
+   0x0000000000401acc <+9>:	e8 a6 fe ff ff     	call   0x401977 <input>
+   0x0000000000401ad1 <+14>:	b8 00 00 00 00     	mov    $0x0,%eax
+   0x0000000000401ad6 <+19>:	e8 fc fe ff ff     	call   0x4019d7 <eval>
+   0x0000000000401adb <+24>:	eb ea              	jmp    0x401ac7 <main+4>
+End of assembler dump.
+
+### main's instructions
+   0x401ac3 <main>:	push   %rbp
+   0x401ac4 <main+1>:	mov    %rsp,%rbp
+   0x401ac7 <main+4>:	mov    $0x0,%eax
+   0x401acc <main+9>:	call   0x401977 <input>
+   0x401ad1 <main+14>:	mov    $0x0,%eax
+   0x401ad6 <main+19>:	call   0x4019d7 <eval>
+   0x401adb <main+24>:	jmp    0x401ac7 <main+4>
+   0x401add <init_fixed_stack>:	push   %rbp
+   0x401ade <init_fixed_stack+1>:	mov    %rsp,%rbp
+   0x401ae1 <init_fixed_stack+4>:	sub    $0x20,%rsp
+   0x401ae5 <init_fixed_stack+8>:	movq   $0x802000,-0x8(%rbp)
+   0x401aed <init_fixed_stack+16>:	mov    -0x8(%rbp),%rax
+   0x401af1 <init_fixed_stack+20>:	mov    $0x0,%r9d
+   0x401af7 <init_fixed_stack+26>:	mov    $0xffffffff,%r8d
+
+### done

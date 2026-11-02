@@ -1,0 +1,12 @@
+# sha256sum check of attack/ against .github/workflows/lab3-checks.yml
+attack/dark-calc: OK
+attack/dark-calc-nx: OK
+attack/dark-log: OK
+attack/malware: OK
+exit=0
+
+# payload scripts (LF) and report files
+-rwxrwxrwx 1 neil neil 1886 Nov  2 23:48 payload.py
+-rwxrwxrwx 1 neil neil 1906 Nov  2 23:49 payload_canary.py
+-rwxrwxrwx 1 neil neil 2295 Nov  2 23:48 payload_dark.py
+-rwxrwxrwx 1 neil neil 1585 Nov  2 23:49 payload_rop.py

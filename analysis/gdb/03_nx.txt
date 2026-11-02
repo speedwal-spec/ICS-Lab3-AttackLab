@@ -1,0 +1,65 @@
+Breakpoint 1 at 0x401868
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+
+Breakpoint 1, 0x0000000000401868 in input ()
+0x0000000000401869 in input ()
+0x000000000040186c in input ()
+0x0000000000401870 in input ()
+
+### input() frame on the ordinary thread stack (NX)
+rbp            0x7ffdaea83110      0x7ffdaea83110
+rsp            0x7ffdaea83100      0x7ffdaea83100
+buffer = rbp-0x10 = 0x7ffdaea83100
+
+### the thread stack mapping has no execute permission
+process 619
+Mapped address spaces:
+
+Start Addr         End Addr           Size               Offset             Perms File 
+0x0000000000400000 0x0000000000402000 0x2000             0x0                r-xp  /home/neil/lab3/dark-calc-nx 
+0x0000000000601000 0x0000000000602000 0x1000             0x1000             r--p  /home/neil/lab3/dark-calc-nx 
+0x0000000000602000 0x0000000000603000 0x1000             0x2000             rw-p  /home/neil/lab3/dark-calc-nx 
+0x0000716a6a800000 0x0000716a6a828000 0x28000            0x0                r--p  /usr/lib/x86_64-linux-gnu/libc.so.6 
+0x0000716a6a828000 0x0000716a6a9c0000 0x198000           0x28000            r-xp  /usr/lib/x86_64-linux-gnu/libc.so.6 
+0x0000716a6a9c0000 0x0000716a6aa0e000 0x4e000            0x1c0000           r--p  /usr/lib/x86_64-linux-gnu/libc.so.6 
+0x0000716a6aa0e000 0x0000716a6aa12000 0x4000             0x20e000           r--p  /usr/lib/x86_64-linux-gnu/libc.so.6 
+0x0000716a6aa12000 0x0000716a6aa14000 0x2000             0x212000           rw-p  /usr/lib/x86_64-linux-gnu/libc.so.6 
+0x0000716a6aa14000 0x0000716a6aa21000 0xd000             0x0                rw-p   
+0x0000716a6abb2000 0x0000716a6abb5000 0x3000             0x0                rw-p   
+0x0000716a6abbb000 0x0000716a6abbd000 0x2000             0x0                rw-p   
+0x0000716a6abbd000 0x0000716a6abc1000 0x4000             0x0                r--p  [vvar] 
+0x0000716a6abc1000 0x0000716a6abc3000 0x2000             0x0                r--p  [vvar_vclock] 
+0x0000716a6abc3000 0x0000716a6abc5000 0x2000             0x0                r-xp  [vdso] 
+0x0000716a6abc5000 0x0000716a6abc6000 0x1000             0x0                r--p  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 
+0x0000716a6abc6000 0x0000716a6abf5000 0x2f000            0x1000             r-xp  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 
+0x0000716a6abf5000 0x0000716a6ac00000 0xb000             0x30000            r--p  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 
+0x0000716a6ac00000 0x0000716a6ac02000 0x2000             0x3b000            r--p  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 
+0x0000716a6ac02000 0x0000716a6ac03000 0x1000             0x3d000            rw-p  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 
+0x0000716a6ac03000 0x0000716a6ac04000 0x1000             0x0                rw-p   
+0x00007ffdaea64000 0x00007ffdaea85000 0x21000            0x0                rw-p  [stack] 
+
+### force the CPU to fetch from the stack buffer
+Breakpoint 2 at 0x401890
+
+Breakpoint 2, 0x0000000000401890 in input ()
+0x7ffdaea83100:	0x6a	0x04	0x5f	0x48	0xb8	0x87	0x1a	0x40
+0x7ffdaea83108:	0x00	0x00	0x00	0x00	0x00	0xff	0xe0	0x43
+=> 0x7ffdaea83100:	push   $0x4
+   0x7ffdaea83102:	pop    %rdi
+   0x7ffdaea83103:	movabs $0x401a87,%rax
+   0x7ffdaea8310d:	jmp    *%rax
+
+Program received signal SIGSEGV, Segmentation fault.
+0x00007ffdaea83100 in ?? ()
+
+### after stepi: the fetch faulted, so the stack is not executable
+rip            0x7ffdaea83100      0x7ffdaea83100
+=> 0x7ffdaea83100:	push   $0x4
+#0  0x00007ffdaea83100 in ?? ()
+#1  0x401a87b8485f046a in ?? ()
+#2  0x43e0ff0000000000 in ?? ()
+#3  0x4343434343434343 in ?? ()
+#4  0x0000721000800fd0 in ?? ()
+#5  0x00000000004019b9 in main ()
+Backtrace stopped: previous frame inner to this frame (corrupt stack?)

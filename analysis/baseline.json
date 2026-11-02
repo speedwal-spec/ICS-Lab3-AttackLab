@@ -1,0 +1,67 @@
+{
+  "scope": "local read-only baseline before analysis artifacts",
+  "date": "2026-11-02",
+  "git_metadata_present": false,
+  "files": {
+    "README.md": {
+      "sha256": "66b20daa764e78e148a1cf3a214755346d50670679c10931e36c19be2964e2b8",
+      "size": 1428
+    },
+    ".gitignore": {
+      "sha256": "0b6ef7b2fd485fbcc1d56ac67a629485fdc3bc4c568d6f7603c20df3e918cc52",
+      "size": 58
+    },
+    ".gitattributes": {
+      "sha256": "bad546914119871e1d02c25b3a3e443f801811be4ff166404b1998f41eee7932",
+      "size": 274
+    },
+    ".github/workflows/lab3-checks.yml": {
+      "sha256": "f20a8d5d63586355e25891babebc6898c0a6c575a2d9cf759d9c7efdc1b40d0b",
+      "size": 6049
+    },
+    "src/aslr.c": {
+      "sha256": "8e7e49733bee08e5d169c5dd2749ad3840c4474b2cc379439211183391d7918e",
+      "size": 165
+    },
+    "src/dark-calc.c": {
+      "sha256": "6d70a29f1734d680f95e2fa651a1ad5a7b69238d258eb262739b314d7eed37b1",
+      "size": 1057
+    },
+    "src/dark-log.c": {
+      "sha256": "8dac490fb9750224993624233e216de8f9b47e46c379ec6c0d80586a7d737e96",
+      "size": 584
+    },
+    "payload.py": {
+      "sha256": "1f96d8fd1f9517fa5e8b21f0d99c4472ab7e1bec6e8a2ea8415659e1c794c28c",
+      "size": 1886
+    },
+    "payload_dark.py": {
+      "sha256": "bc74e1c731201036257980820319aaa4a46653118e89cc281813ec24494474d3",
+      "size": 2295
+    },
+    "payload_rop.py": {
+      "sha256": "5c4c2e6c0242b68be5f9bc96e4074f358ef93ae997040d0404d8c07060e05a97",
+      "size": 1585
+    },
+    "payload_canary.py": {
+      "sha256": "ff21d05242935e64f0cbd7605e77faf6580d63c07c3019dd0625a92a8b1deea6",
+      "size": 1906
+    },
+    "attack/dark-calc": {
+      "sha256": "a9c3d4a5eed6a937e85884f6a53faa39613d49e04792e2c411620fcc74f79097",
+      "size": 17592
+    },
+    "attack/dark-calc-nx": {
+      "sha256": "86c2c8dfaf4a89eb7a1396d9731bfb7ee085f0b45c86687b41547a30b5b1c613",
+      "size": 13144
+    },
+    "attack/dark-log": {
+      "sha256": "9a4479f2a522d377055b54d328d5c0e0f3ca1327708ac792028ec03cadaee31d",
+      "size": 12656
+    },
+    "attack/malware": {
+      "sha256": "03289add49f13e8573d125c8949bd88c9892e84f205802613a6baa2318fb18bc",
+      "size": 726
+    }
+  }
+}

