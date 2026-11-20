@@ -11,7 +11,7 @@
   {
     "payload": "payload_dark.py",
     "target": "dark-calc",
-    "bytes": 41,
+    "bytes": 33,
     "generator_rc": 0,
     "target_rc": 0,
     "pass": true,
@@ -20,7 +20,7 @@
   {
     "payload": "payload_rop.py",
     "target": "dark-calc-nx",
-    "bytes": 57,
+    "bytes": 65,
     "generator_rc": 0,
     "target_rc": 0,
     "pass": true,

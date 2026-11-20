@@ -68,7 +68,7 @@ def run_ci():
 
 
 def run_lengths():
-    lengths = [0, 1, 3, 8, 15, 16, 20, 23, 24, 31, 47, 48, 64, 200]
+    lengths = [0, 1, 3, 8, 15, 16, 20, 23, 24, 31, 32, 47, 48, 64, 200]
     rows = []
     for n in lengths:
         data = b"1" * n + b"\n"

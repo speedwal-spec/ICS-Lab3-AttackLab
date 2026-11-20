@@ -10,6 +10,7 @@
 | 23 | 0 | 111111111111111 / Enter an expression (length up to 15): / Executing: echo $((111111111111111)) / Enter an expression (length up to 15): / 42_is_The_À |
 | 24 | -7 |  |
 | 31 | -11 |  |
+| 32 | -11 |  |
 | 47 | -11 |  |
 | 48 | -11 |  |
 | 64 | -11 |  |
