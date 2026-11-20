@@ -574,7 +574,7 @@ def build(ev):
               ["-0x120", "expression[128]", "gets 写入点，也是 memcpy 的源"],
               ["-0xa0", "logMsg[128]", "memcpy 的目的基址（logMsg + len）"],
               ["-0x20", "len（int）", "初值 0；偏移 256 处可被输入覆盖——这是第七节的关键"],
-              ["-0x18", "pad[8]", "gets 的 NUL 终止符可以安全落在这里"],
+              ["-0x1c", "pad[8]", "gets 的 NUL 终止符可以安全落在这里"],
               ["-0x08", "stack canary", "fs:0x28 的副本，返回前异或校验"],
               ["+0x00 / +0x08", "saved rbp / 返回地址", "控制流目标"],
           ],

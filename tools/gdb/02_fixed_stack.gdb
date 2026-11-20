@@ -17,7 +17,7 @@ printf "buffer = rbp-0x10 = 0x%lx\n", $rbp - 0x10
 printf "shellcode bytes:\n"
 x/24bx $rbp - 0x10
 printf "\n### disassemble the injected bytes\n"
-x/6i $rbp - 0x10
+x/7i $rbp - 0x10
 printf "\n### saved return address now points back into the fixed stack\n"
 x/4gx $rbp
 printf "\n### watch grade_eval receive edi=4\n"

