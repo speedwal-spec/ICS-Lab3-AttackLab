@@ -31,7 +31,7 @@ CASES = [
 
 
 def run_ci():
-    lines = ["# CI-equivalent payload verification", ""]
+    lines = ["# Local reproduction of the GitHub Actions CI payload checks", ""]
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         for payload, target, expected in CASES:

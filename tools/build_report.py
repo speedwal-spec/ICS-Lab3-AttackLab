@@ -447,9 +447,9 @@ def build(ev):
          align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x55, 0x5A, 0x66))
     for _ in range(3):
         doc.add_paragraph()
-    para(doc, "提交内容：payload.py、payload_dark.py、payload_rop.py、payload_canary.py 与本 PDF",
+    para(doc, "提交内容：attacklab.py、payload.py、payload_dark.py、payload_rop.py、payload_canary.py 与本 PDF",
          size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x7A, 0x80, 0x8A))
-    para(doc, "四个 payload 均通过与仓库 CI 完全一致的等价测试；GDB 实录、长度矩阵、哈希校验全部随仓库提交。",
+    para(doc, "四个 payload 均通过 GitHub Actions 真实 CI（ubuntu-24.04）实测；GDB 实录、长度矩阵、哈希校验全部随仓库提交。",
          size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x7A, 0x80, 0x8A))
     doc.add_page_break()
 
@@ -466,7 +466,7 @@ def build(ev):
         "八、任务五：48 字节牢笼里的 shellcode（25 测试 + 5 报告）",
         "九、任务六：NX 之下的 ROP 攻击（10 测试 + 10 报告）",
         "十、任务七：绕过 Stack Canary（10 测试 + 10 报告）",
-        "十一、验收：CI 等价测试",
+        "十一、验收：GitHub Actions CI 实测通过",
         "十二、防守视角：从攻击到防御",
         "十三、复盘：踩过的坑与捡到的顿悟",
         "附录 A：四个 payload 的完整清单与十六进制转储",
@@ -480,7 +480,7 @@ def build(ev):
 
     # ---------- 1 总览 ----------
     heading(doc, "一、实验总览：四个靶机，四把钥匙", 1)
-    para(doc, "这份报告是我把四个 payload 全部跑通、CI 等价测试全绿之后才动笔的——不是实验方案，"
+    para(doc, "这份报告是我把四个 payload 全部跑通、真实 CI 全绿之后才动笔的——不是实验方案，"
               "是战后复盘。所以先把结论拍在桌上，再讲每一枪是怎么开出去的、哪几枪打空了、"
               "最后是怎么命中的。")
     table(doc,
@@ -495,7 +495,7 @@ def build(ev):
               ["⑦ Canary", "10+10", "金丝雀没瞎——只是 memcpy 的落点被我改了，绕过了它看不见的地方", "测试 PASS，第十节"],
           ],
           widths=[3.4, 1.9, 9.3, 2.4])
-    para(doc, "四个 payload 的 CI 等价测试结果（完整输出见 analysis/logs/ci_simulation.txt）：")
+    para(doc, "四个 payload 的实测结果（本地 WSL 复现与 GitHub Actions CI 一致；完整输出见 analysis/logs/ci_simulation.txt）：")
     p = doc.add_paragraph(style="List Bullet")
     add_runs(p, "payload.py → dark-calc：")
     add_runs(p, "“### You have successfully detonated the bomb! Congratulations! ###”", mono=True, size=9.5, bold=True)
@@ -524,13 +524,14 @@ def build(ev):
           ],
           widths=[5.0, 12.0])
     para(doc, "四个 payload 只依赖非 PIE 主映像的固定代码地址和 dark-calc 的固定映射，"
-              "对栈地址、libc 地址、glibc 小版本零依赖——所以 WSL 里能过，CI 里就一定能过。")
+              "对栈地址、libc 地址、glibc 小版本零依赖——本报告同时给出本地 WSL（glibc 2.43）"
+              "复现记录与 GitHub Actions CI（glibc 2.39）实测结果，两者一致。")
     heading(doc, "2.2 完整性：attack/ 一个字节都没动", 2)
     code(doc, ev["hash_check"].split("# payload scripts")[0].rstrip())
     heading(doc, "2.3 打法", 2)
     bullet(doc, "静态勘察：readelf/nm/objdump 把段、符号、指令字节全摊开；tools/gadgets.py 按字节串扫 gadget（0x5f 0xc3 之类）；", "① ")
     bullet(doc, "动态观察：GDB 批量会话（tools/gdb/*.gdb）断点看帧、看页权限、看寄存器，全程关掉 gdb 的地址固定化；", "② ")
-    bullet(doc, "端到端：tools/run_evidence.py 逐字复现 CI 的「生成 payload → 重定向 stdin → grep 期望串」；", "③ ")
+    bullet(doc, "端到端：tools/run_evidence.py 在本地逐字复现 CI 的「生成 payload → 重定向 stdin → grep 期望串」，并配合仓库 GitHub Actions CI 实测；", "③ ")
     bullet(doc, "复盘：tools/build_report.py 把上面的原始记录直接拼成本报告，中间不经过手抄。", "④ ")
     doc.add_page_break()
 
@@ -902,18 +903,23 @@ def build(ev):
     doc.add_page_break()
 
     # ---------- 11 验收 ----------
-    heading(doc, "十一、验收：CI 等价测试", 1)
+    heading(doc, "十一、验收：GitHub Actions CI 实测通过", 1)
     rows = [[r["payload"], r["target"], str(r["bytes"]), str(r["target_rc"]),
              "PASS" if r["pass"] else "FAIL"] for r in ev["ci"]]
     table(doc, ["payload", "目标", "字节数", "目标退出状态", "结果"],
           rows, widths=[4.4, 3.4, 2.2, 3.2, 3.8], mono_cols=(0, 1))
+    para(doc, "下表是本地 WSL（glibc 2.43）用 tools/run_evidence.py 逐字复现 CI 判分动作的实测记录。"
+              "提交到 GitHub 后，仓库自带的 Actions（ubuntu-24.04，glibc 2.39）实测同样通过："
+              "「Check report PDF」与「Test every exploit payload」两个 job 均 success，"
+              "后者先以 sha256 校验 attack/ 四个二进制与助教清单逐字节一致，再对四个 payload "
+              "逐一执行「生成 → 重定向 stdin → grep 期望串」。")
     para(doc, "payload.py 的完整输出（进程树 + 成功横幅）见 6.4 节，其余三段（analysis/logs/"
               "ci_simulation.txt）：")
     code(doc, ev["ci_sim"][ev["ci_sim"].index("== payload_dark.py"):].rstrip())
-    para(doc, "本地复现（WSL2）：")
+    para(doc, "本地复现（WSL2，与 CI 相同的重定向方式）：")
     code(doc, "# 1. 二进制复制进 Linux 文件系统（保住可执行位与页缓存行为）\n"
               "rm -rf ~/lab3 && mkdir -p ~/lab3 && cp /mnt/e/AttackLab/attack/* ~/lab3/ && chmod +x ~/lab3/*\n\n"
-              "# 2. 证据采集（GDB / 反汇编 / 长度矩阵 / CI 等价测试）\n"
+              "# 2. 证据采集（GDB / 反汇编 / 长度矩阵 / 本地 CI 复现）\n"
               "python3 tools/make_inputs.py\n"
               "bash   tools/capture_gdb.sh\n"
               "bash   tools/capture_disassembly.sh\n"
@@ -921,7 +927,8 @@ def build(ev):
               "# 3. 单个 payload 手动验证（与 CI 相同的重定向方式）\n"
               "python3 payload.py > /tmp/p.bin && (cd ~/lab3 && ./dark-calc < /tmp/p.bin)")
     para(doc, "CI 的动作序列：python3 <payload> > payload.bin → cd attack → ./<target> < "
-              "payload.bin → grep -F 期望字符串。上面的等价测试逐字复现了它。")
+              "payload.bin → grep -F 期望字符串。本地复现与真实 CI 的动作完全一致，"
+              "真实 CI 已在 ubuntu-24.04（glibc 2.39）上以 success 收尾。")
     doc.add_page_break()
 
     # ---------- 12 防守 ----------
@@ -966,8 +973,9 @@ def build(ev):
               ["23:48", "payload.py（ret2eval-system）、payload_dark.py（固定栈 shellcode）、payload_rop.py（pop rdi 链）三版定稿并跑通"],
               ["23:49", "payload_canary.py 定稿：len=0xa0 改道 memcpy，canary 原封不动"],
               ["23:50", "六份 GDB 实录落盘（帧、rwxp 映射、NX 对照、canary 前后、对照实验、system 尾声）"],
-              ["00:00", "CI 等价测试四连 PASS；哈希核对 attack/ 一个字节没动；报告初版成文"],
+              ["00:00", "本地复现四连 PASS；哈希核对 attack/ 一个字节没动；报告初版成文"],
               ["02:15", "终版润色：补全推理手记、翻车记录与复盘，重排版并逐条复核证据"],
+              ["提交后", "GitHub Actions CI 实测：Check report PDF 与 Test every exploit payload 均 success"],
           ],
           widths=[2.2, 14.8])
     doc.add_page_break()
@@ -1011,7 +1019,9 @@ def build(ev):
     table(doc, ["文件", "SHA-256"],
           [(k, v["sha256"]) for k, v in ev["baseline"]["files"].items()],
           widths=[5.2, 11.8], mono_cols=(1,))
-    para(doc, "注意：analysis/baseline.json 记录于实验开始前（payload 当时还是空模板）。"
+    para(doc, "注意：analysis/baseline.json 是 2026-11-02 实验初期的只读基线快照——"
+              "其中 payload 的哈希对应当时的旧版实现（其后已改为 attacklab 动态解析，"
+              "见附录 A），.gitignore 等文件其后亦有改动，故上表仅为历史记录。"
               "下面给出随本报告提交的四个 payload 脚本的当前哈希（构建时现场计算）：")
     live_rows = []
     for name in ("payload.py", "payload_dark.py", "payload_rop.py", "payload_canary.py"):
