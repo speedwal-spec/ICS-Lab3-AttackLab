@@ -27,7 +27,7 @@ LOGS = os.path.join(ANALYSIS, "logs")
 DIS = os.path.join(ANALYSIS, "disassembly")
 FIGS = os.path.join(ANALYSIS, "figs")
 
-OUT = os.path.join(ANALYSIS, "Lab3-AttackLab-实验报告.docx")
+OUT = os.path.join(ROOT, "Lab3-AttackLab-实验报告.docx")
 
 EAST = "微软雅黑"
 ASCII = "微软雅黑"
@@ -1022,9 +1022,9 @@ def build(ev):
     para(doc, "注意：analysis/baseline.json 是 2026-11-02 实验初期的只读基线快照——"
               "其中 payload 的哈希对应当时的旧版实现（其后已改为 attacklab 动态解析，"
               "见附录 A），.gitignore 等文件其后亦有改动，故上表仅为历史记录。"
-              "下面给出随本报告提交的四个 payload 脚本的当前哈希（构建时现场计算）：")
+              "下面给出随本报告提交的五个 Python 文件的当前哈希（构建时现场计算）：")
     live_rows = []
-    for name in ("payload.py", "payload_dark.py", "payload_rop.py", "payload_canary.py"):
+    for name in ("attacklab.py", "payload.py", "payload_dark.py", "payload_rop.py", "payload_canary.py"):
         h = hashlib.sha256(open(os.path.join(ROOT, name), "rb").read()).hexdigest()
         live_rows.append([name, h])
     table(doc, ["文件", "SHA-256（提交时）"], live_rows,
