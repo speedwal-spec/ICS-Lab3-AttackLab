@@ -5,3 +5,4 @@ core.*
 vgcore.*
 *.o
 .DS_Store
+~$*

