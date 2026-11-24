@@ -6,14 +6,15 @@ target exit status: -7  PASS=True
 --- stdout ---
 
 [1msystemd,1[0m splash
-  `-[1msshd,1302[0m
-      `-[1msshd,7298[0m
-          `-[1msshd,7406[0m
-              `-[1mpython3,7407[0m tools/run_evidence.py
-                  `-[1mdark-calc,7409[0m
-                      `-[1msh,7410[0m -c -- ./malware
-                          `-[1mmalware,7411[0m ./malware
-                              `-pstree,7412 -a -l -p -s -H 7411 7411
+  `-[1mVBoxService,1071[0m
+      `-[1mVBoxService,7633[0m --utf8-argv guestsession --session-id=2 --session-proto=2 --user labuser
+          `-[1mbash,7638[0m -lc bash ~/10_refresh.sh > ~/10_refresh.log 2>&1; echo RC=$?
+              `-[1mbash,7642[0m /home/labuser/10_refresh.sh
+                  `-[1mpython3,7710[0m tools/run_evidence.py
+                      `-[1mdark-calc,7712[0m
+                          `-[1msh,7713[0m -c -- ./malware
+                              `-[1mmalware,7714[0m ./malware
+                                  `-pstree,7715 -a -l -p -s -H 7714 7714
 
 ### The bomb was triggered by the dark-calc process. ###
 ### You have successfully detonated the bomb! Congratulations! ###

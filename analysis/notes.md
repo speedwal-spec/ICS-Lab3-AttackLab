@@ -189,9 +189,17 @@ CI 等价：`python3 payload_*.py > p.bin; (cd attack && ./<target> < p.bin)`。
 
 ## 6. 环境
 
-VirtualBox Ubuntu 24.04.5 LTS，内核 7.0.0-31-generic；glibc 2.39；
+VirtualBox Ubuntu 24.04.5 LTS，内核 7.0.0-43-generic；glibc 2.39（2.39-0ubuntu8.12）；
 gcc 13.3.0；GNU gdb 15.1；binutils 2.42；Python 3.12.3；
 `/proc/sys/kernel/randomize_va_space=2`。GDB 默认 `disable-randomization=on`，
 本实验所有会话都显式 `set disable-randomization off`。CI 同为 ubuntu-24.04
 （glibc 2.39）：四个 payload 只使用非 PIE 固定代码地址与 dark-calc 的固定
 映射地址，不依赖栈/libc 地址；本环境与 CI 的 glibc 版本一致，实测结果可直接对应 CI。
+
+证据采集分两次：2026-11-23 在 7.0.0-31 / glibc 2.39-0ubuntu8.9 上首次采集，
+2026-11-24 系统自动升级到 7.0.0-43 / 8.12 后按 `## 5` 的命令整体重跑，
+四个 payload 仍 4/4 PASS，`analysis/` 下的实录与日志即第二次运行的结果。
+
+报告插图由 `tools/make_figs.py` 用 Pillow 按实测数据绘制（示意图，不是屏幕截图）。
+脚本按 Windows 字体路径（微软雅黑）绘制，在装有该字体的主机上执行
+`python3 tools/make_figs.py` 即可重画；Linux 下会退化为默认字体。

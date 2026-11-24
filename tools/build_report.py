@@ -47,8 +47,8 @@ def style_setup(doc):
     normal.font.size = Pt(10.5)
     normal.font.color.rgb = INK
     normal.element.rPr.rFonts.set(qn("w:eastAsia"), EAST)
-    normal.paragraph_format.space_after = Pt(4)
-    normal.paragraph_format.line_spacing = 1.15
+    normal.paragraph_format.space_after = Pt(3)
+    normal.paragraph_format.line_spacing = 1.12
 
     for name, size, color, bold in (("Heading 1", 16, ACCENT, True),
                                     ("Heading 2", 13, ACCENT, True),
@@ -262,12 +262,34 @@ def table(doc, headers, rows, widths=None, font_size=9, mono_cols=()):
         for i, w in enumerate(widths):
             for row in t.rows:
                 row.cells[i].width = Cm(w)
-    doc.add_paragraph().paragraph_format.space_after = Pt(2)
+    # Never let a row break across a page boundary: a split row leaves a
+    # one-line fragment at the top of the next page.
+    for row in t.rows:
+        trPr = row._tr.get_or_add_trPr()
+        cant_split = OxmlElement("w:cantSplit")
+        trPr.insert(0, cant_split)
     return t
 
 
+_pending_break = False
+
+
+def page_break(doc):
+    """Ask the next heading to start on a fresh page.
+
+    An explicit <w:br type="page"/> paragraph at a page boundary renders an
+    entirely blank page; `page_break_before` on the heading cannot.
+    """
+    global _pending_break
+    _pending_break = True
+
+
 def heading(doc, text, level=1):
+    global _pending_break
     h = doc.add_heading(text, level=level)
+    if _pending_break:
+        h.paragraph_format.page_break_before = True
+        _pending_break = False
     for run in h.runs:
         run.font.name = ASCII
         run.element.rPr.rFonts.set(qn("w:eastAsia"), EAST)
@@ -450,7 +472,7 @@ def build(ev):
          size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x7A, 0x80, 0x8A))
     para(doc, "四个 payload 均在 VirtualBox Ubuntu 24.04 虚拟机中以与 CI 完全一致的判分动作复现通过；GDB 实录、长度矩阵、哈希校验全部随仓库提交。",
          size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x7A, 0x80, 0x8A))
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- TOC ----------
     heading(doc, "目录", 1)
@@ -475,7 +497,7 @@ def build(ev):
     ]
     for t in toc:
         para(doc, t, size=11, space_after=4)
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 1 总览 ----------
     heading(doc, "一、实验总览：四个靶机，四把钥匙", 1)
@@ -502,9 +524,9 @@ def build(ev):
     add_runs(p, "payload_dark.py / payload_rop.py / payload_canary.py：")
     add_runs(p, "“Hope A will be your grade!”", mono=True, size=9.5, bold=True)
     para(doc, "阅读指南：正文里的黄底「推理手记」是第一人称的现场思考——有两次翻车，也有几次灵光一现；"
-              "灰底代码块全部来自 GDB/objdump/终端的原始记录；图 1–5 是在 VirtualBox 虚拟机中直接抓取的真实屏幕截图。"
+              "灰底代码块全部来自 GDB/objdump/终端的原始记录；图 1–4 是按实测数据绘制的示意图（生成脚本 tools/make_figs.py 随仓库提交）。"
               "所有地址都出自仓库里未被修改的二进制（哈希与 CI 清单逐字节一致），不是纸上谈兵。")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 2 环境 ----------
     heading(doc, "二、实验环境：系统、哈希与工具链", 1)
@@ -532,7 +554,7 @@ def build(ev):
     bullet(doc, "动态观察：GDB 批量会话（tools/gdb/*.gdb）断点看帧、看页权限、看寄存器，全程关掉 gdb 的地址固定化；", "② ")
     bullet(doc, "端到端：tools/run_evidence.py 在虚拟机中逐字复现 CI 的「生成 payload → 重定向 stdin → grep 期望串」；", "③ ")
     bullet(doc, "复盘：tools/build_report.py 把上面的原始记录直接拼成本报告，中间不经过手抄。", "④ ")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 3 静态勘察 ----------
     heading(doc, "三、静态分析：三个 ELF 的底细", 1)
@@ -602,7 +624,7 @@ def build(ev):
               ["长度截断（MAXLEN=15）", "eval 中 min(strlen, 15)", "只限制 shell 表达式，不影响 gets 溢出"],
           ],
           widths=[2.8, 6.4, 7.8])
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 4 任务一 ----------
     heading(doc, "四、任务一：观察 input 的栈帧（20 分）", 1)
@@ -623,7 +645,7 @@ def build(ev):
     code(doc, ev["frame_entry"])
     code(doc, ev["frame_prologue"])
     code(doc, ev["frame_after_gets"])
-    para(doc, "量出来的结果见实录截图（图 1），完整 ASCII 版如下：")
+    para(doc, "量出来的结果见图 1（按实测数据绘制），完整 ASCII 版如下：")
     code(doc,
          "0x721000801000 ┌──────────────────────────────┐  ← PROT_NONE 守卫页：越界写必死\n"
          "0x721000800ff8 │ ret → 0x401c1f               │  __wrap_main 调 main 压入\n"
@@ -632,7 +654,7 @@ def build(ev):
          "0x721000800fe0 │ saved rbp → 0x721000800ff0    │  ← 偏移 +16\n"
          "0x721000800fd0 │ expression[16]                │  ← gets 从这里开始写，向高地址漫灌\n"
          "               └──────────────────────────────┘")
-    picture(doc, os.path.join(FIGS, "fig_frame_input.png"), 6.3, "图 1  真实截图：GDB 中 dark-calc 的 input() 栈帧（固定栈，地址恒定）")
+    picture(doc, os.path.join(FIGS, "fig_frame_input.png"), 6.3, "图 1  dark-calc 的 input() 栈帧：缓冲区到返回地址 24 字节，到守卫页 48 字节")
     table(doc,
           ["地址（固定）", "槽位", "实测值", "说明"],
           [
@@ -647,7 +669,7 @@ def build(ev):
     para(doc, "两个数字刻进脑子里：缓冲区到返回地址 24 字节；缓冲区到守卫页 48 字节——"
               "gets 还要写一个 NUL，所以单次输入上限是 47 字节。这个「48 字节牢笼」是任务三"
               "和任务五所有设计约束的源头。")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 5 任务二 ----------
     heading(doc, "五、任务二：长度矩阵与崩溃边界（5 分）", 1)
@@ -692,7 +714,7 @@ def build(ev):
               "16–23 字节输入早已越出 expression[16]，程序照样把前 15 个字符包进 echo $(( )) "
               "执行——闸门设在溢出之后，拦得住 shell 表达式的长度，拦不住已经发生的栈破坏。"
               "第五节留下的尾巴是：这扇闸门本身能不能被钻？第六节回答。")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 6 任务三 ----------
     heading(doc, "六、任务三：溢出执行 ./malware（25 测试 + 5 报告）", 1)
@@ -726,7 +748,7 @@ def build(ev):
     para(doc, "（GDB 的工作目录不是 attack/，所以 sh 报 ./malware: not found——CI 是在 attack/ "
               "里跑的，能找到。断点证实 rdi=0x6030d0、command_buf=\"./malware\"。）")
     heading(doc, "6.4 端到端：起爆成功", 2)
-    picture(doc, os.path.join(FIGS, "fig_proc_tree.png"), 6.2, "图 2  真实截图：malware 沿父链找到 dark-calc（含进程树）")
+    picture(doc, os.path.join(FIGS, "fig_proc_tree.png"), 6.2, "图 2  payload.py 的运行现场：malware 沿父链找到 dark-calc")
     sim = ev["ci_sim"]
     block = sim[sim.index("== payload.py"):]
     block = block[:block.index("== payload_dark.py")].rstrip()
@@ -742,7 +764,7 @@ def build(ev):
                "也就是说这台机器的攻击面比作业要求的大：即使不碰缓冲区，命令注入也能得手。"
                "本任务按作业要求用返回地址覆盖实现；但这扇门值得写进防御章节——"
                "system() + 用户输入，从来都是高危组合。")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 7 任务四 ----------
     heading(doc, "七、任务四：main 的机器码与内存布局（5 分）", 1)
@@ -767,7 +789,7 @@ def build(ev):
     para(doc, "其余要点：main 没有局部变量，所以没有 sub rsp；0x401ac7→0x401adb 是 while(1)，"
               "一次 input()+eval() 之后跳回循环头继续读；main 入口 rsp%16=8，push rbp 后 "
               "rsp%16=0，call 压栈后子函数入口 rsp%16=8——符合 SysV ABI 的 16 字节栈对齐。")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 8 任务五 ----------
     heading(doc, "八、任务五：48 字节牢笼里的 shellcode（25 测试 + 5 报告）", 1)
@@ -779,7 +801,7 @@ def build(ev):
                "在 47 字节的输入预算里，塞下一段能调 grade_eval(4) 的机器码。")
     heading(doc, "8.1 固定栈的实锤", 2)
     code(doc, ev["fixed_maps"])
-    picture(doc, os.path.join(FIGS, "fig_fixed_stack.png"), 6.4, "图 3  真实截图：GDB info proc mappings 显示固定栈映射（rwxp + 两侧守卫页）")
+    picture(doc, os.path.join(FIGS, "fig_fixed_stack.png"), 6.4, "图 3  dark-calc 的固定栈映射：8 MiB rwxp，两端各一页守卫页")
     code(doc, ev["wrap_entry"])
     heading(doc, "8.2 shellcode：21 字节，把预算花在刀刃上", 2)
     code(doc, "b8 87 1a 40 00  mov  eax, 0x401a87        ; grade_eval（非 PIE 下 32 位即完整地址）\n"
@@ -807,7 +829,7 @@ def build(ev):
     code(doc, ev["nx_fault"])
     para(doc, "同一批字节在 dark-calc 上执行、在 dark-calc-nx 上取指即 SIGSEGV——"
               "一条指令都没跑完。这就是 NX 的实锤：不是「文件名里带 nx」，是页表里没有 X。")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 9 任务六 ----------
     heading(doc, "九、任务六：NX 之下的 ROP 攻击（10 测试 + 10 报告）", 1)
@@ -847,7 +869,7 @@ def build(ev):
     heading(doc, "9.3 实测", 2)
     code(doc, "Enter an expression (length up to 15):\n\n Hope A will be your grade! \n"
               "target exit status: 0   PASS（期望字符串命中）")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 10 任务七 ----------
     heading(doc, "十、任务七：绕过 Stack Canary（10 测试 + 10 报告）", 1)
@@ -868,7 +890,7 @@ def build(ev):
               "改道。len 在偏移 256，先于 canary（280）被输入控制；令 len=0xa0=160，目的地 = "
               "logMsg+0xa0 = rbp。拷贝区间 rbp..rbp+0x7f 精准覆盖 saved rbp 与返回地址，"
               "canary 原封不动，校验自然通过。")
-    picture(doc, os.path.join(FIGS, "fig_darklog.png"), 5.8, "图 4  真实截图：GDB 中 len 控制的 memcpy 覆盖返回地址、canary 原封不动")
+    picture(doc, os.path.join(FIGS, "fig_darklog.png"), 5.8, "图 4  dark-log：len 控制 memcpy 落点，改写返回地址而 canary 原封不动")
     heading(doc, "10.3 payload：恰好 260 字节", 2)
     table(doc,
           ["偏移", "字节", "作用"],
@@ -909,15 +931,17 @@ def build(ev):
               "溢出方向的低地址，让「够到返回地址」与「不碰 canary」二者不可兼得。本实验为了"
               "留出利用空间，刻意用一个结构体把字段顺序钉死成 expression→logMsg→len，"
               "才开出了这条不经过金丝雀的绕路。")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 11 验收 ----------
     heading(doc, "十一、验收：虚拟机复现通过（与 CI 判分动作一致）", 1)
-    rows = [[r["payload"], r["target"], str(r["bytes"]), str(r["target_rc"]),
+    rows = [[r["payload"], r["target"], str(r["bytes"]),
+             str(r["target_rc"]) + (" (SIGBUS)" if r["target_rc"] == -7 else
+                                    " (SIGSEGV)" if r["target_rc"] == -11 else ""),
              "PASS" if r["pass"] else "FAIL"] for r in ev["ci"]]
     table(doc, ["payload", "目标", "字节数", "目标退出状态", "结果"],
-          rows, widths=[4.4, 3.4, 2.2, 3.2, 3.8], mono_cols=(0, 1))
-    para(doc, "下表是 VirtualBox Ubuntu 24.04（glibc 2.39）用 tools/run_evidence.py 逐字复现 CI 判分动作的实测记录。"
+          rows, widths=[4.2, 3.2, 2.0, 3.6, 4.0], mono_cols=(0, 1))
+    para(doc, "上表是 VirtualBox Ubuntu 24.04（glibc 2.39）用 tools/run_evidence.py 逐字复现 CI 判分动作的实测记录。"
               "该脚本与仓库 Actions 的「Test every exploit payload」job 执行完全相同的动作："
               "先以 sha256 校验 attack/ 四个二进制与助教清单逐字节一致，再对四个 payload "
               "逐一执行「生成 → 重定向 stdin → grep 期望串」。真实 CI 结果需在 push 到 GitHub 后，"
@@ -938,7 +962,7 @@ def build(ev):
     para(doc, "CI 的动作序列：python3 <payload> > payload.bin → cd attack → ./<target> < "
               "payload.bin → grep -F 期望字符串。虚拟机复现与 CI 的动作完全一致；"
               "真实 CI 结果以 push 后仓库 Actions（ubuntu-24.04，glibc 2.39）的实际运行状态为准。")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 12 防守 ----------
     heading(doc, "十二、防守视角：从攻击到防御", 1)
@@ -959,7 +983,7 @@ def build(ev):
     para(doc, "每一行都对应一个本实验亲手打穿的环节。单点防御都会被绕过——"
               "金丝雀看不到「绕路」，NX 挡不住「借代码」，ASLR 架不住「不依赖地址」——"
               "只有叠起来用（纵深防御）才有意义。")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 13 复盘 ----------
     heading(doc, "十三、复盘：踩过的坑与捡到的顿悟", 1)
@@ -977,17 +1001,12 @@ def build(ev):
     table(doc,
           ["时间", "事件"],
           [
-              ["23:40", "环境就绪；静态勘察三个 ELF，锁定 gets/strcpy/固定栈三处入口"],
-              ["23:44", "GDB 量出栈帧：24 字节到返回地址、48 字节到守卫页；长度矩阵扫出生死线 23/24、47/48"],
-              ["23:48", "payload.py（ret2eval-system）、payload_dark.py（固定栈 shellcode）、payload_rop.py（pop rdi 链）三版定稿并跑通"],
-              ["23:49", "payload_canary.py 定稿：len=0xa0 改道 memcpy，canary 原封不动"],
-              ["23:50", "六份 GDB 实录落盘（帧、rwxp 映射、NX 对照、canary 前后、对照实验、system 尾声）"],
-              ["00:00", "虚拟机复现四连 PASS；哈希核对 attack/ 一个字节没动；报告初版成文"],
-              ["02:15", "终版润色：补全推理手记、翻车记录与复盘，重排版并逐条复核证据"],
-              ["提交后", "push 到 GitHub 后由仓库 Actions 自动运行「Check report PDF」与「Test every exploit payload」验证（结果以实际运行状态为准）"],
+              ["2026-11-23", "22:09–22:55 在 VirtualBox Ubuntu 24.04 中完成静态勘察、六份 GDB 实录、长度矩阵与四连 PASS"],
+              ["2026-11-24", "07:08–07:19 系统自动升级 libc6 与内核；17:12–17:21 重跑全部证据，仍 4/4 PASS，实录与哈希随之刷新"],
+              ["push 之后", "由仓库 Actions 运行「Check report PDF」与「Test every exploit payload」，结果以实际运行状态为准"],
           ],
-          widths=[2.2, 14.8])
-    doc.add_page_break()
+          widths=[3.2, 13.8])
+    page_break(doc)
 
     # ---------- 附录 A ----------
     heading(doc, "附录 A：四个 payload 的完整清单与十六进制转储", 1)
@@ -995,8 +1014,7 @@ def build(ev):
         heading(doc, name, 2)
         code(doc, open(os.path.join(ROOT, name), encoding="utf-8").read())
         code(doc, payload_hexdump(name))
-    picture(doc, os.path.join(FIGS, "fig_payloads.png"), 3.2, "图 5  真实截图：四个 payload 的十六进制转储（od）")
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 附录 B ----------
     heading(doc, "附录 B：关键 GDB 实录摘录", 1)
@@ -1017,7 +1035,7 @@ def build(ev):
     ]:
         heading(doc, title, 2)
         code(doc, text)
-    doc.add_page_break()
+    page_break(doc)
 
     # ---------- 附录 C ----------
     heading(doc, "附录 C：环境参数与文件哈希", 1)

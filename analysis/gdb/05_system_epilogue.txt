@@ -12,7 +12,7 @@ rsp            0x721000800ff0      0x721000800ff0
 
 ### after system() returns: the frame pointer is attacker-controlled
 Breakpoint 2 at 0x401a75
-[Detaching after vfork from child process 6001]
+[Detaching after vfork from child process 7708]
 sh: 1: ./malware: not found
 
 Breakpoint 2, 0x0000000000401a75 in eval ()

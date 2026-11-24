@@ -1,10 +1,10 @@
 {
-  "uname": "7.0.0-31-generic",
+  "uname": "7.0.0-43-generic",
   "distro": "\"Ubuntu 24.04.5 LTS\"",
   "gcc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
   "gdb": "GNU gdb (Ubuntu 15.1-1ubuntu1~24.04.1) 15.1",
   "python": "Python 3.12.3",
-  "libc": "ldd (Ubuntu GLIBC 2.39-0ubuntu8.9) 2.39",
+  "libc": "ldd (Ubuntu GLIBC 2.39-0ubuntu8.12) 2.39",
   "objdump": "GNU objdump (GNU Binutils for Ubuntu) 2.42",
   "aslr": "2",
   "gdb_default_disable_randomization": "on"
