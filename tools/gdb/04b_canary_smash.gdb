@@ -1,4 +1,4 @@
-# GDB session 4b: control case -- a 320-byte input also overwrites the canary.
+# GDB session 4b: control case -- a 288-byte input also overwrites the canary.
 set pagination off
 set confirm off
 set disable-randomization off
@@ -14,7 +14,7 @@ printf "canary before input: "
 p/x *(unsigned long *)($rbp - 0x8)
 break *input+0x105
 continue
-printf "canary after 320-byte input: "
+printf "canary after 288-byte input: "
 p/x *(unsigned long *)($rbp - 0x8)
 printf "TLS canary: "
 p/x *(unsigned long *)($fs_base + 0x28)

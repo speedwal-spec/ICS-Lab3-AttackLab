@@ -9,8 +9,10 @@ confirmed by eye.
 import argparse
 import re
 import struct
+import os
 import subprocess
 import sys
+import tempfile
 
 PT_LOAD = 1
 
@@ -39,14 +41,27 @@ def vaddr_of(segs, file_off):
     return None
 
 
-def disasm(path, start, count=20):
-    out = subprocess.run(
-        ["objdump", "-D", "-b", "binary", "-m", "i386:x86-64", "-M", "intel",
-         f"--adjust-vma=0x{start:x}", f"--start-address=0x{start:x}",
-         f"--stop-address=0x{start + count:x}", path],
-        capture_output=True, text=True,
-    ).stdout
-    return "\n".join(out.splitlines()[7:])
+def disasm(path, file_off, vaddr, count=20):
+    """Disassemble `count` bytes at file offset `file_off`, labelled at `vaddr`.
+
+    objdump -b binary maps the file at 0, so feeding it the whole ELF would
+    disassemble the file header; slice the bytes first and shift the VMA.
+    """
+    with open(path, "rb") as fh:
+        fh.seek(file_off)
+        code = fh.read(count)
+    fd, tmp = tempfile.mkstemp(suffix=".bin")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(code)
+        out = subprocess.run(
+            ["objdump", "-D", "-b", "binary", "-m", "i386:x86-64", "-M", "intel",
+             f"--adjust-vma=0x{vaddr:x}", tmp],
+            capture_output=True, text=True,
+        ).stdout
+    finally:
+        os.unlink(tmp)
+    return "\n".join(ln for ln in out.splitlines() if re.match(r"^\s*[0-9a-f]+:", ln))
 
 
 def main():
@@ -65,7 +80,7 @@ def main():
             v = vaddr_of(segs, off)
             print(f"  file=0x{off:x} vaddr=0x{v:x}" if v is not None else f"  file=0x{off:x} vaddr=<not exec>")
             if v is not None:
-                print("    " + disasm(args.binary, v, args.window).replace("\n", "\n    "))
+                print("    " + disasm(args.binary, off, v, args.window).replace("\n", "\n    "))
 
 
 if __name__ == "__main__":

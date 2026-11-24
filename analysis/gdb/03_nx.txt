@@ -8,59 +8,59 @@ Breakpoint 1, 0x0000000000401868 in input ()
 0x0000000000401870 in input ()
 
 ### input() frame on the ordinary thread stack (NX)
-rbp            0x7ffef5373b20      0x7ffef5373b20
-rsp            0x7ffef5373b10      0x7ffef5373b10
-buffer = rbp-0x10 = 0x7ffef5373b10
+rbp            0x7fff8034fc60      0x7fff8034fc60
+rsp            0x7fff8034fc50      0x7fff8034fc50
+buffer = rbp-0x10 = 0x7fff8034fc50
 
 ### the thread stack mapping has no execute permission
-process 7684
+process 9089
 Mapped address spaces:
 
           Start Addr           End Addr       Size     Offset  Perms  objfile
             0x400000           0x402000     0x2000        0x0  r-xp   /home/labuser/lab3/dark-calc-nx
             0x601000           0x602000     0x1000     0x1000  r--p   /home/labuser/lab3/dark-calc-nx
             0x602000           0x603000     0x1000     0x2000  rw-p   /home/labuser/lab3/dark-calc-nx
-      0x7df78be00000     0x7df78be28000    0x28000        0x0  r--p   /usr/lib/x86_64-linux-gnu/libc.so.6
-      0x7df78be28000     0x7df78bfb1000   0x189000    0x28000  r-xp   /usr/lib/x86_64-linux-gnu/libc.so.6
-      0x7df78bfb1000     0x7df78c000000    0x4f000   0x1b1000  r--p   /usr/lib/x86_64-linux-gnu/libc.so.6
-      0x7df78c000000     0x7df78c004000     0x4000   0x1ff000  r--p   /usr/lib/x86_64-linux-gnu/libc.so.6
-      0x7df78c004000     0x7df78c006000     0x2000   0x203000  rw-p   /usr/lib/x86_64-linux-gnu/libc.so.6
-      0x7df78c006000     0x7df78c013000     0xd000        0x0  rw-p   
-      0x7df78c198000     0x7df78c19b000     0x3000        0x0  rw-p   
-      0x7df78c1a9000     0x7df78c1ab000     0x2000        0x0  rw-p   
-      0x7df78c1ab000     0x7df78c1af000     0x4000        0x0  r--p   [vvar]
-      0x7df78c1af000     0x7df78c1b1000     0x2000        0x0  r--p   [vvar_vclock]
-      0x7df78c1b1000     0x7df78c1b3000     0x2000        0x0  r-xp   [vdso]
-      0x7df78c1b3000     0x7df78c1b4000     0x1000        0x0  r--p   /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
-      0x7df78c1b4000     0x7df78c1df000    0x2b000     0x1000  r-xp   /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
-      0x7df78c1df000     0x7df78c1e9000     0xa000    0x2c000  r--p   /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
-      0x7df78c1e9000     0x7df78c1eb000     0x2000    0x36000  r--p   /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
-      0x7df78c1eb000     0x7df78c1ed000     0x2000    0x38000  rw-p   /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
-      0x7ffef5355000     0x7ffef5376000    0x21000        0x0  rw-p   [stack]
+      0x79665fe00000     0x79665fe28000    0x28000        0x0  r--p   /usr/lib/x86_64-linux-gnu/libc.so.6
+      0x79665fe28000     0x79665ffb1000   0x189000    0x28000  r-xp   /usr/lib/x86_64-linux-gnu/libc.so.6
+      0x79665ffb1000     0x796660000000    0x4f000   0x1b1000  r--p   /usr/lib/x86_64-linux-gnu/libc.so.6
+      0x796660000000     0x796660004000     0x4000   0x1ff000  r--p   /usr/lib/x86_64-linux-gnu/libc.so.6
+      0x796660004000     0x796660006000     0x2000   0x203000  rw-p   /usr/lib/x86_64-linux-gnu/libc.so.6
+      0x796660006000     0x796660013000     0xd000        0x0  rw-p   
+      0x796660100000     0x796660103000     0x3000        0x0  rw-p   
+      0x796660111000     0x796660113000     0x2000        0x0  rw-p   
+      0x796660113000     0x796660117000     0x4000        0x0  r--p   [vvar]
+      0x796660117000     0x796660119000     0x2000        0x0  r--p   [vvar_vclock]
+      0x796660119000     0x79666011b000     0x2000        0x0  r-xp   [vdso]
+      0x79666011b000     0x79666011c000     0x1000        0x0  r--p   /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+      0x79666011c000     0x796660147000    0x2b000     0x1000  r-xp   /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+      0x796660147000     0x796660151000     0xa000    0x2c000  r--p   /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+      0x796660151000     0x796660153000     0x2000    0x36000  r--p   /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+      0x796660153000     0x796660155000     0x2000    0x38000  rw-p   /usr/lib/x86_64-linux-gnu/ld-linux-x86-64.so.2
+      0x7fff80331000     0x7fff80352000    0x21000        0x0  rw-p   [stack]
   0xffffffffff600000 0xffffffffff601000     0x1000        0x0  --xp   [vsyscall]
 
 ### force the CPU to fetch from the stack buffer
 Breakpoint 2 at 0x401890
 
 Breakpoint 2, 0x0000000000401890 in input ()
-0x7ffef5373b10:	0xb8	0x87	0x1a	0x40	0x00	0x6a	0x04	0x5f
-0x7ffef5373b18:	0x2d	0xce	0x00	0x00	0x00	0x50	0x05	0xce
-=> 0x7ffef5373b10:	mov    $0x401a87,%eax
-   0x7ffef5373b15:	push   $0x4
-   0x7ffef5373b17:	pop    %rdi
-   0x7ffef5373b18:	sub    $0xce,%eax
+0x7fff8034fc50:	0xb8	0x87	0x1a	0x40	0x00	0x6a	0x04	0x5f
+0x7fff8034fc58:	0x2d	0xce	0x00	0x00	0x00	0x50	0x05	0xce
+=> 0x7fff8034fc50:	mov    $0x401a87,%eax
+   0x7fff8034fc55:	push   $0x4
+   0x7fff8034fc57:	pop    %rdi
+   0x7fff8034fc58:	sub    $0xce,%eax
 
 Program received signal SIGSEGV, Segmentation fault.
-0x00007ffef5373b10 in ?? ()
+0x00007fff8034fc50 in ?? ()
 
 ### after stepi: the fetch faulted, so the stack is not executable
-rip            0x7ffef5373b10      0x7ffef5373b10
-=> 0x7ffef5373b10:	mov    $0x401a87,%eax
-#0  0x00007ffef5373b10 in ?? ()
+rip            0x7fff8034fc50      0x7fff8034fc50
+=> 0x7fff8034fc50:	mov    $0x401a87,%eax
+#0  0x00007fff8034fc50 in ?? ()
 #1  0x5f046a00401a87b8 in ?? ()
 #2  0xce0550000000ce2d in ?? ()
 #3  0x909090e0ff000000 in ?? ()
 #4  0x0000721000800fd0 in ?? ()
-#5  0x00007ffef5373b00 in ?? ()
-#6  0x00007df78be2a1ca in __libc_start_call_main (main=0x7df78c0056b0 <stdin>, argc=32247, argv=0x7ffef5373b10) at ../sysdeps/nptl/libc_start_call_main.h:58
+#5  0x00007fff8034fd00 in ?? ()
+#6  0x000079665fe2a1ca in __libc_start_call_main (main=0x7966600056b0 <stdin>, argc=31078, argv=0x7fff8034fc50) at ../sysdeps/nptl/libc_start_call_main.h:58
 Backtrace stopped: previous frame inner to this frame (corrupt stack?)

@@ -12,8 +12,20 @@ rsp            0x721000800ff0      0x721000800ff0
 
 ### after system() returns: the frame pointer is attacker-controlled
 Breakpoint 2 at 0x401a75
-[Detaching after vfork from child process 7708]
-sh: 1: ./malware: not found
+[Detaching after vfork from child process 9442]
+
+[1msystemd,1[0m splash
+  `-[1mlogin,8249[0m -p --
+      `-[1mbash,8435[0m
+          `-[1mgdb,9435[0m -q -batch -x tools/gdb/05_system_epilogue.gdb
+              `-[1mdark-calc,9439[0m
+                  `-[1msh,9442[0m -c -- ./malware
+                      `-[1mmalware,9443[0m ./malware
+                          `-pstree,9444 -a -l -p -s -H 9443 9443
+
+### The bomb was triggered by the dark-calc process. ###
+### You have successfully detonated the bomb! Congratulations! ###
+
 
 Breakpoint 2, 0x0000000000401a75 in eval ()
 rip            0x401a75            0x401a75 <eval+158>

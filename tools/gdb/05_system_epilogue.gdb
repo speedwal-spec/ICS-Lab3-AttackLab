@@ -3,6 +3,9 @@ set pagination off
 set confirm off
 set disable-randomization off
 file ~/lab3/dark-calc
+# Run from the directory the grader uses, so ./malware resolves.
+cd ~/lab3
+set environment TERM=xterm
 break *0x401a6b
 run < /tmp/lab3-inputs/overflow_system.bin
 printf "\n### returned into eval's system call site\n"

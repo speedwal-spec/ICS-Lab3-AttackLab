@@ -530,7 +530,8 @@ def build(ev):
     para(doc, "阅读指南：正文里的黄底「推理手记」是第一人称的现场思考——有两次翻车，也有几次灵光一现；"
               "灰底代码块全部来自 GDB/objdump/终端的原始记录；图 1–5 是在虚拟机文本控制台上实拍的终端截图"
               "（用 tools/screens/ 下的脚本重放，VBoxManage screenshotpng 抓取，仅裁掉四周空白）。"
-              "所有地址都出自仓库里未被修改的二进制（哈希与 CI 清单逐字节一致），不是纸上谈兵。")
+              "截图与附录 B 的实录来自不同次运行：ASLR 地址、canary 值与 PID 每次不同，"
+              "固定地址、偏移与判定结果不变。所有地址都出自仓库里未被修改的二进制（哈希与 CI 清单逐字节一致），不是纸上谈兵。")
     page_break(doc)
 
     # ---------- 2 环境 ----------
@@ -750,8 +751,9 @@ def build(ev):
     code(doc, ev["sys_site"])
     code(doc, ev["sys_after"])
     code(doc, ev["sys_epilogue"])
-    para(doc, "（GDB 的工作目录不是 attack/，所以 sh 报 ./malware: not found——CI 是在 attack/ "
-              "里跑的，能找到。断点证实 rdi=0x6030d0、command_buf=\"./malware\"。）")
+    para(doc, "（这次 GDB 就在 ~/lab3 里跑，sh 找得到 ./malware：进程树和两行 ### 横幅都是子进程的真实输出，"
+              "之后调试器才回到父进程的断点。断点证实 rdi=0x6030d0、command_buf=\"./malware\"；"
+              "最后那条 SIGBUS 来自 eval 尾声的 leave——它用的是被覆盖成 0x4242… 的 rbp。）")
     heading(doc, "6.4 端到端：起爆成功", 2)
     picture(doc, os.path.join(FIGS, "fig_proc_tree.png"), 6.4, "图 2  终端截图：malware 沿父链找到 dark-calc（进程树与成功横幅）")
     sim = ev["ci_sim"]
@@ -878,7 +880,7 @@ def build(ev):
 
     # ---------- 10 任务七 ----------
     heading(doc, "十、任务七：绕过 Stack Canary（10 测试 + 10 报告）", 1)
-    think(doc, "直线思路：覆盖返回地址得写 288 字节，而 canary 蹲在偏移 280——必然踩中；"
+    think(doc, "直线思路：返回地址在偏移 296，而 canary 蹲在 280——想够到它必然先踩中金丝雀；"
                "canary 每进程随机，静态 payload 根本写不回原值。先做个对照实验证明它确实在"
                "看着：288 字节覆盖 canary →「*** stack smashing detected ***: terminated」→ "
                "SIGABRT。铁壁，正面撞不动。")
@@ -944,12 +946,12 @@ def build(ev):
              str(r["target_rc"]) + (" (SIGBUS)" if r["target_rc"] == -7 else
                                     " (SIGSEGV)" if r["target_rc"] == -11 else ""),
              "PASS" if r["pass"] else "FAIL"] for r in ev["ci"]]
-    table(doc, ["payload", "目标", "字节数", "目标退出状态", "结果"],
+    table(doc, ["payload", "目标", "字节数（含换行）", "目标退出状态", "结果"],
           rows, widths=[4.2, 3.2, 2.0, 3.6, 4.0], mono_cols=(0, 1))
     para(doc, "上表是 VirtualBox Ubuntu 24.04（glibc 2.39）用 tools/run_evidence.py 逐字复现 CI 判分动作的实测记录。"
-              "该脚本与仓库 Actions 的「Test every exploit payload」job 执行完全相同的动作："
-              "先以 sha256 校验 attack/ 四个二进制与助教清单逐字节一致，再对四个 payload "
-              "逐一执行「生成 → 重定向 stdin → grep 期望串」。真实 CI 结果需在 push 到 GitHub 后，"
+              "该脚本复现仓库 Actions 的「Test every exploit payload」job 对四个 payload 的判分动作："
+              "「生成 → 重定向 stdin → grep 期望串」；attack/ 四个二进制与助教清单的 sha256 对照"
+              "由 tools/hash_check.sh 单独完成（输出见 2.2 节）。真实 CI 结果需在 push 到 GitHub 后，"
               "由仓库自带的 Actions（ubuntu-24.04，glibc 2.39）自动运行验证，本报告不预先断言其状态。")
     para(doc, "payload.py 的完整输出（进程树 + 成功横幅）见 6.4 节，其余三段（analysis/logs/"
               "ci_simulation.txt）：")
@@ -1006,8 +1008,8 @@ def build(ev):
     table(doc,
           ["时间", "事件"],
           [
-              ["2026-11-23", "22:09–22:55 在 VirtualBox Ubuntu 24.04 中完成静态勘察、六份 GDB 实录、长度矩阵与四连 PASS"],
-              ["2026-11-24", "07:08–07:19 系统自动升级 libc6 与内核；17:12–17:21 重跑全部证据（仍 4/4 PASS）；17:45 在文本控制台重拍五张终端截图"],
+              ["2026-11-23", "首次采集证据（内核 7.0.0-31 / glibc 2.39-0ubuntu8.9）"],
+              ["2026-11-24", "系统升级到 7.0.0-43 / 2.39-0ubuntu8.12 后整体重跑：四个 payload 4/4 PASS，五张终端截图重拍"],
               ["push 之后", "由仓库 Actions 运行「Check report PDF」与「Test every exploit payload」，结果以实际运行状态为准"],
           ],
           widths=[3.2, 13.8])
