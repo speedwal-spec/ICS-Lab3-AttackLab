@@ -1,6 +1,6 @@
 Breakpoint 1 at 0x401a6b
 [Thread debugging using libthread_db enabled]
-Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
 
 Breakpoint 1, 0x0000000000401a6b in eval ()
 
@@ -12,7 +12,7 @@ rsp            0x721000800ff0      0x721000800ff0
 
 ### after system() returns: the frame pointer is attacker-controlled
 Breakpoint 2 at 0x401a75
-[Detaching after vfork from child process 601]
+[Detaching after vfork from child process 6001]
 sh: 1: ./malware: not found
 
 Breakpoint 2, 0x0000000000401a75 in eval ()

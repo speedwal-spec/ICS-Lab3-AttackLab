@@ -18,7 +18,7 @@ import tempfile
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ATTACK = os.path.join(ROOT, "attack")
 LOGS = os.path.join(ROOT, "analysis", "logs")
-LAB = os.path.expanduser("~/lab3")  # executable copy, avoids /mnt/e noexec quirks
+LAB = os.path.expanduser("~/lab3")  # executable working copy
 
 os.makedirs(LOGS, exist_ok=True)
 
@@ -31,7 +31,7 @@ CASES = [
 
 
 def run_ci():
-    lines = ["# Local reproduction of the GitHub Actions CI payload checks", ""]
+    lines = ["# VirtualBox Ubuntu 24.04 CI-equivalent payload checks (matches .github/workflows/lab3-checks.yml)", ""]
     rows = []
     with tempfile.TemporaryDirectory() as tmp:
         for payload, target, expected in CASES:
@@ -42,7 +42,8 @@ def run_ci():
             with open(path, "wb") as fh:
                 fh.write(data)
             proc = subprocess.run([os.path.join(LAB, target)], stdin=open(path, "rb"),
-                                  cwd=LAB, capture_output=True, timeout=15)
+                                  cwd=LAB, capture_output=True, timeout=15,
+                                  env=dict(os.environ, TERM="xterm"))
             ok = expected.encode() in proc.stdout
             rows.append({
                 "payload": payload, "target": target, "bytes": len(data),

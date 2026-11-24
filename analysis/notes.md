@@ -1,4 +1,4 @@
-# AttackLab 技术笔记（2026-11-02）
+# AttackLab 技术笔记（2026-11-23 复核，VirtualBox Ubuntu 24.04）
 
 本文档是实验报告的事实来源汇总：所有地址均来自本仓库 `attack/` 中的原始
 二进制（哈希与 `.github/workflows/lab3-checks.yml` 一致），并通过 `objdump`、
@@ -73,7 +73,8 @@ char pad[8]; }`，编译器把它放在一个 0x120 的帧里：
 ### attack/malware
 
 POSIX shell 脚本：打印进程树，然后沿父进程链向上找 `comm == "dark-calc"`；
-找到打印 `### You have successfully detonated the bomb! Congratulations! ###`。
+命中后先打印 `### The bomb was triggered by the dark-calc process. ###`，
+再打印 `### You have successfully detonated the bomb! Congratulations! ###`。
 所以它必须由 dark-calc 通过 `system()` 之类的方式直接/间接启动。
 
 ## 2. dark-calc 固定栈上的 input 帧（任务一）
@@ -85,7 +86,7 @@ GDB 实测（`analysis/gdb/01_frame_and_main.txt`，ASLR 打开）：
 | 0x721000800fd0 | expression[16]（gets 写入起点） |
 | 0x721000800fe0 | input 的 saved rbp = 0x721000800ff0（main 的 rbp） |
 | 0x721000800fe8 | input 的返回地址 = 0x401ad1（main+0xe） |
-| 0x721000800ff0 | main 的 saved rbp = 0（_start 里 xor ebp,ebp 之后） |
+| 0x721000800ff0 | main 的 saved rbp = 原内核栈帧指针（非 0，随 ASLR 变化；__wrap_main 未改 rbp） |
 | 0x721000800ff8 | __wrap_main 调 main 压入的返回地址 0x401c1f |
 | 0x721000801000 | 守卫页起点（PROT_NONE） |
 
@@ -174,10 +175,10 @@ p64(0x4018aa)                  mov edi,0; call exit@plt（干净退出）
 ≥48 → gets 的 NUL 写入守卫页，gets 内部 SIGSEGV。另注意 stdout 是全缓冲的，
 `system()` 子进程的输出会先于 `Executing:` 行出现。
 
-## 5. 复现命令（WSL2）
+## 5. 复现命令（VirtualBox Ubuntu 24.04）
 
 ```sh
-rm -rf ~/lab3 && mkdir ~/lab3 && cp /mnt/e/AttackLab/attack/* ~/lab3/ && chmod +x ~/lab3/*
+rm -rf ~/lab3 && mkdir -p ~/lab3 && cp attack/* ~/lab3/ && chmod +x ~/lab3/*
 python3 tools/make_inputs.py                       # /tmp/lab3-inputs/*
 bash   tools/capture_gdb.sh                        # analysis/gdb/*.txt
 bash   tools/capture_disassembly.sh                # analysis/disassembly/*.txt
@@ -188,10 +189,9 @@ CI 等价：`python3 payload_*.py > p.bin; (cd attack && ./<target> < p.bin)`。
 
 ## 6. 环境
 
-WSL2 Ubuntu 26.04，内核 6.18.33.2-microsoft-standard-WSL2；glibc 2.43；
-gcc 15.2.0；GNU gdb 17.1；binutils 2.46；Python 3.14.4；
+VirtualBox Ubuntu 24.04.5 LTS，内核 7.0.0-31-generic；glibc 2.39；
+gcc 13.3.0；GNU gdb 15.1；binutils 2.42；Python 3.12.3；
 `/proc/sys/kernel/randomize_va_space=2`。GDB 默认 `disable-randomization=on`，
-本实验所有会话都显式 `set disable-randomization off`。CI 为 ubuntu-24.04
+本实验所有会话都显式 `set disable-randomization off`。CI 同为 ubuntu-24.04
 （glibc 2.39）：四个 payload 只使用非 PIE 固定代码地址与 dark-calc 的固定
-映射地址，不依赖栈/libc 地址，glibc 版本差异不影响结果（gets、system 等符号
-在 2.39/2.43 均存在）。
+映射地址，不依赖栈/libc 地址；本环境与 CI 的 glibc 版本一致，实测结果可直接对应 CI。

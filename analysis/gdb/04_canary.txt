@@ -1,12 +1,12 @@
 Breakpoint 1 at 0x4016d6
 [Thread debugging using libthread_db enabled]
-Using host libthread_db library "/usr/lib/x86_64-linux-gnu/libthread_db.so.1".
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
 
 Breakpoint 1, 0x00000000004016d6 in input ()
 
 ### input() entry
-rbp            0x7ffe15f55240      0x7ffe15f55240
-rsp            0x7ffe15f55228      0x7ffe15f55228
+rbp            0x7ffdc030f170      0x7ffdc030f170
+rsp            0x7ffdc030f158      0x7ffdc030f158
 
 ### step the prologue and the canary store
 0x00000000004016d7 in input ()
@@ -14,29 +14,29 @@ rsp            0x7ffe15f55228      0x7ffe15f55228
 0x00000000004016e1 in input ()
 0x00000000004016ea in input ()
 0x00000000004016ee in input ()
-after prologue: rbp=0x7ffe15f55220 rsp=0x7ffe15f55100
-stack canary at rbp-0x8 : $1 = 0xb7bfa897425b6400
-TLS canary at fs:0x28   : $2 = 0xb7bfa897425b6400
+after prologue: rbp=0x7ffdc030f150 rsp=0x7ffdc030f030
+stack canary at rbp-0x8 : $1 = 0x2c0cb6d34cb39a00
+TLS canary at fs:0x28   : $2 = 0x2c0cb6d34cb39a00
 
 ### run to the point just after the 128-byte memcpy
 Breakpoint 2 at 0x4017db
 
 Breakpoint 2, 0x00000000004017db in input ()
 len (rbp-0x20) = 160  (0xa0)
-memcpy destination = logMsg + len = 0x7ffe15f55220
-stack canary at rbp-0x8 : $3 = 0xb7bfa897425b6400
+memcpy destination = logMsg + len = 0x7ffdc030f150
+stack canary at rbp-0x8 : $3 = 0x2c0cb6d34cb39a00
 
 ### the overwritten frame tail: saved rbp, return address, canary
-0x7ffe15f55218:	0xb7bfa897425b6400	0x4b4b4b4b4b4b4b4b
-0x7ffe15f55228:	0x00000000004018a3	0x0000000000000004
-0x7ffe15f55238:	0x00000000004018a4
+0x7ffdc030f148:	0x2c0cb6d34cb39a00	0x4b4b4b4b4b4b4b4b
+0x7ffdc030f158:	0x00000000004018a3	0x0000000000000004
+0x7ffdc030f168:	0x00000000004018a4
 
 ### continue into grade_eval(4)
 Breakpoint 3 at 0x401677
 
 Breakpoint 3, 0x0000000000401677 in grade_eval ()
 rdi            0x4                 4
-rsp            0x7ffe15f55248      0x7ffe15f55248
+rsp            0x7ffdc030f178      0x7ffdc030f178
 rbp            0x4b4b4b4b4b4b4b4b  0x4b4b4b4b4b4b4b4b
 #0  0x0000000000401677 in grade_eval ()
 #1  0x4c4c4c4c4c4c4c4c in ?? ()
@@ -50,8 +50,10 @@ rbp            0x4b4b4b4b4b4b4b4b  0x4b4b4b4b4b4b4b4b
 #9  0x4c4c4c4c4c4c4c4c in ?? ()
 #10 0x4c4c4c4c4c4c4c4c in ?? ()
 #11 0x4c4c4c4c4c4c4c4c in ?? ()
-#12 0x00007777a2c15000 in _GLOBAL_OFFSET_TABLE_ () from /lib64/ld-linux-x86-64.so.2
-#13 0x0000000000000000 in ?? ()
+#12 0x9ef5d7391b45b122 in ?? ()
+#13 0x9bf93cddbb47b122 in ?? ()
+#14 0x00007ffd00000000 in ?? ()
+#15 0x0000000000000000 in ?? ()
 
 ### run to the end
 Enter a log message:

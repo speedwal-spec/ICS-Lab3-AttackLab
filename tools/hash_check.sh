@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Verify that attack/ files still match the CI-recorded checksums.
 set -u
-cd /mnt/e/AttackLab || exit 1
+cd "$(dirname "$0")/.." || exit 1
 {
   echo "# sha256sum check of attack/ against .github/workflows/lab3-checks.yml"
   sha256sum --check --strict - <<'EOF'

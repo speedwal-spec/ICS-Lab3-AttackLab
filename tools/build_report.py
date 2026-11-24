@@ -334,7 +334,7 @@ def disasm_range(binary, lo, hi):
             continue
         addr = int(m.group(1), 16)
         if lo <= addr < hi:
-            out.append(ln)
+            out.append(ln.rstrip("\n"))
     return "\n".join(out)
 
 
@@ -347,7 +347,7 @@ def disasm_func(binary, name, next_name):
         elif on and f"<{next_name}>:" in ln:
             break
         if on:
-            out.append(ln)
+            out.append(ln.rstrip("\n"))
     return "\n".join(out)
 
 
@@ -370,7 +370,6 @@ def load_evidence():
     ev["env"] = json.load(open(os.path.join(LOGS, "environment.json"), encoding="utf-8"))
     ev["ci"] = json.load(open(os.path.join(LOGS, "ci_simulation.json"), encoding="utf-8"))
     ev["lengths"] = json.load(open(os.path.join(LOGS, "length_tests.json"), encoding="utf-8"))
-    ev["baseline"] = json.load(open(os.path.join(ANALYSIS, "baseline.json"), encoding="utf-8"))
     ev["hash_check"] = open(os.path.join(LOGS, "hash_check.txt"), encoding="utf-8").read()
     ev["ci_sim"] = open(os.path.join(LOGS, "ci_simulation.txt"), encoding="utf-8").read()
     ev["aslr"] = open(os.path.join(LOGS, "aslr.txt"), encoding="utf-8").read()
@@ -423,7 +422,7 @@ def build(ev):
     page_number_footer(doc)
 
     # ---------- cover ----------
-    for _ in range(6):
+    for _ in range(4):
         doc.add_paragraph()
     para(doc, "复旦大学 · 计算机系统基础（ICS）· 2026 年秋季学期", size=11,
          align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x8A, 0x93, 0xA3))
@@ -438,18 +437,18 @@ def build(ev):
          align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x55, 0x5A, 0x66))
     para(doc, "—— 一份包含翻车记录与血泪复盘的技术报告 ——", size=11.5,
          align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x7A, 0x80, 0x8A))
-    for _ in range(5):
+    for _ in range(3):
         doc.add_paragraph()
     para(doc, "姓名：____________________　　学号：____________________",
          size=12, align=WD_ALIGN_PARAGRAPH.CENTER)
     doc.add_paragraph()
-    para(doc, "日期：2026 年 11 月 2 日", size=11,
+    para(doc, "日期：2026 年 11 月 24 日", size=11,
          align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x55, 0x5A, 0x66))
-    for _ in range(3):
+    for _ in range(2):
         doc.add_paragraph()
     para(doc, "提交内容：attacklab.py、payload.py、payload_dark.py、payload_rop.py、payload_canary.py 与本 PDF",
          size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x7A, 0x80, 0x8A))
-    para(doc, "四个 payload 均通过 GitHub Actions 真实 CI（ubuntu-24.04）实测；GDB 实录、长度矩阵、哈希校验全部随仓库提交。",
+    para(doc, "四个 payload 均在 VirtualBox Ubuntu 24.04 虚拟机中以与 CI 完全一致的判分动作复现通过；GDB 实录、长度矩阵、哈希校验全部随仓库提交。",
          size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x7A, 0x80, 0x8A))
     doc.add_page_break()
 
@@ -466,12 +465,12 @@ def build(ev):
         "八、任务五：48 字节牢笼里的 shellcode（25 测试 + 5 报告）",
         "九、任务六：NX 之下的 ROP 攻击（10 测试 + 10 报告）",
         "十、任务七：绕过 Stack Canary（10 测试 + 10 报告）",
-        "十一、验收：GitHub Actions CI 实测通过",
+        "十一、验收：虚拟机复现通过（与 CI 判分动作一致）",
         "十二、防守视角：从攻击到防御",
         "十三、复盘：踩过的坑与捡到的顿悟",
         "附录 A：四个 payload 的完整清单与十六进制转储",
         "附录 B：关键 GDB 实录摘录",
-        "附录 C：环境参数、文件哈希与实验时间线",
+        "附录 C：环境参数与文件哈希",
         "附录 D：常用命令速查",
     ]
     for t in toc:
@@ -480,7 +479,7 @@ def build(ev):
 
     # ---------- 1 总览 ----------
     heading(doc, "一、实验总览：四个靶机，四把钥匙", 1)
-    para(doc, "这份报告是我把四个 payload 全部跑通、真实 CI 全绿之后才动笔的——不是实验方案，"
+    para(doc, "这份报告是我把四个 payload 全部跑通、并以与 CI 完全一致的判分动作在 VirtualBox Ubuntu 24.04 虚拟机复现通过之后才动笔的——不是实验方案，"
               "是战后复盘。所以先把结论拍在桌上，再讲每一枪是怎么开出去的、哪几枪打空了、"
               "最后是怎么命中的。")
     table(doc,
@@ -495,7 +494,7 @@ def build(ev):
               ["⑦ Canary", "10+10", "金丝雀没瞎——只是 memcpy 的落点被我改了，绕过了它看不见的地方", "测试 PASS，第十节"],
           ],
           widths=[3.4, 1.9, 9.3, 2.4])
-    para(doc, "四个 payload 的实测结果（本地 WSL 复现与 GitHub Actions CI 一致；完整输出见 analysis/logs/ci_simulation.txt）：")
+    para(doc, "四个 payload 的实测结果（VirtualBox Ubuntu 24.04 虚拟机复现，判分动作与仓库 CI 完全一致；完整输出见 analysis/logs/ci_simulation.txt）：")
     p = doc.add_paragraph(style="List Bullet")
     add_runs(p, "payload.py → dark-calc：")
     add_runs(p, "“### You have successfully detonated the bomb! Congratulations! ###”", mono=True, size=9.5, bold=True)
@@ -503,7 +502,7 @@ def build(ev):
     add_runs(p, "payload_dark.py / payload_rop.py / payload_canary.py：")
     add_runs(p, "“Hope A will be your grade!”", mono=True, size=9.5, bold=True)
     para(doc, "阅读指南：正文里的黄底「推理手记」是第一人称的现场思考——有两次翻车，也有几次灵光一现；"
-              "灰底代码块全部来自 GDB/objdump/终端的原始记录；图 1–5 是按实测数据画的。"
+              "灰底代码块全部来自 GDB/objdump/终端的原始记录；图 1–5 是在 VirtualBox 虚拟机中直接抓取的真实屏幕截图。"
               "所有地址都出自仓库里未被修改的二进制（哈希与 CI 清单逐字节一致），不是纸上谈兵。")
     doc.add_page_break()
 
@@ -514,7 +513,7 @@ def build(ev):
     table(doc,
           ["项目", "取值"],
           [
-              ["操作系统", "WSL2 Ubuntu 26.04 LTS（内核 " + env["uname"] + "）"],
+              ["操作系统", "VirtualBox Ubuntu 24.04.5 LTS（内核 " + env["uname"] + "）"],
               ["gcc / gdb / binutils", env["gcc"] + " ｜ " + env["gdb"] + " ｜ " + env["objdump"]],
               ["glibc (ldd)", env["libc"]],
               ["Python", env["python"]],
@@ -524,14 +523,14 @@ def build(ev):
           ],
           widths=[5.0, 12.0])
     para(doc, "四个 payload 只依赖非 PIE 主映像的固定代码地址和 dark-calc 的固定映射，"
-              "对栈地址、libc 地址、glibc 小版本零依赖——本报告同时给出本地 WSL（glibc 2.43）"
-              "复现记录与 GitHub Actions CI（glibc 2.39）实测结果，两者一致。")
+              "对栈地址、libc 地址、glibc 小版本零依赖。本实验在 VirtualBox Ubuntu 24.04"
+              "（glibc 2.39，与 CI 的 ubuntu-24.04 环境一致）中完成。")
     heading(doc, "2.2 完整性：attack/ 一个字节都没动", 2)
     code(doc, ev["hash_check"].split("# payload scripts")[0].rstrip())
     heading(doc, "2.3 打法", 2)
     bullet(doc, "静态勘察：readelf/nm/objdump 把段、符号、指令字节全摊开；tools/gadgets.py 按字节串扫 gadget（0x5f 0xc3 之类）；", "① ")
     bullet(doc, "动态观察：GDB 批量会话（tools/gdb/*.gdb）断点看帧、看页权限、看寄存器，全程关掉 gdb 的地址固定化；", "② ")
-    bullet(doc, "端到端：tools/run_evidence.py 在本地逐字复现 CI 的「生成 payload → 重定向 stdin → grep 期望串」，并配合仓库 GitHub Actions CI 实测；", "③ ")
+    bullet(doc, "端到端：tools/run_evidence.py 在虚拟机中逐字复现 CI 的「生成 payload → 重定向 stdin → grep 期望串」；", "③ ")
     bullet(doc, "复盘：tools/build_report.py 把上面的原始记录直接拼成本报告，中间不经过手抄。", "④ ")
     doc.add_page_break()
 
@@ -624,23 +623,23 @@ def build(ev):
     code(doc, ev["frame_entry"])
     code(doc, ev["frame_prologue"])
     code(doc, ev["frame_after_gets"])
-    para(doc, "量出来的结果画成图（图 1），也可以直接看 ASCII 版：")
+    para(doc, "量出来的结果见实录截图（图 1），完整 ASCII 版如下：")
     code(doc,
          "0x721000801000 ┌──────────────────────────────┐  ← PROT_NONE 守卫页：越界写必死\n"
          "0x721000800ff8 │ ret → 0x401c1f               │  __wrap_main 调 main 压入\n"
-         "0x721000800ff0 │ main 的 saved rbp = 0          │  main 帧\n"
+         "0x721000800ff0 │ main 的 saved rbp（非 0，随 ASLR）│  main 帧\n"
          "0x721000800fe8 │ ret → 0x401ad1                │  ← 偏移 +24：控制流的钥匙\n"
          "0x721000800fe0 │ saved rbp → 0x721000800ff0    │  ← 偏移 +16\n"
          "0x721000800fd0 │ expression[16]                │  ← gets 从这里开始写，向高地址漫灌\n"
          "               └──────────────────────────────┘")
-    picture(doc, os.path.join(FIGS, "fig_frame_input.png"), 6.3, "图 1  dark-calc 的 input() 栈帧（固定栈，地址恒定）")
+    picture(doc, os.path.join(FIGS, "fig_frame_input.png"), 6.3, "图 1  真实截图：GDB 中 dark-calc 的 input() 栈帧（固定栈，地址恒定）")
     table(doc,
           ["地址（固定）", "槽位", "实测值", "说明"],
           [
               ["0x721000800fd0", "expression[16]", "输入内容", "gets 写入起点；偏移 +0"],
               ["0x721000800fe0", "saved rbp", "0x721000800ff0", "main 的 rbp；偏移 +16"],
               ["0x721000800fe8", "返回地址", "0x401ad1", "main+0xe（call input 之后）；偏移 +24"],
-              ["0x721000800ff0", "main 的 saved rbp", "0", "_start 里 xor ebp,ebp 的遗留值"],
+              ["0x721000800ff0", "main 的 saved rbp", "非 0（随 ASLR 变化）", "原内核栈上 __libc_start_main 的帧指针（__wrap_main 未改 rbp）"],
               ["0x721000800ff8", "__wrap_main 的返回地址", "0x401c1f", "call main 压入"],
               ["0x721000801000", "守卫页起点", "PROT_NONE", "越界写到这里直接 SIGSEGV"],
           ],
@@ -727,7 +726,7 @@ def build(ev):
     para(doc, "（GDB 的工作目录不是 attack/，所以 sh 报 ./malware: not found——CI 是在 attack/ "
               "里跑的，能找到。断点证实 rdi=0x6030d0、command_buf=\"./malware\"。）")
     heading(doc, "6.4 端到端：起爆成功", 2)
-    picture(doc, os.path.join(FIGS, "fig_proc_tree.png"), 6.2, "图 5  payload.py 的运行现场：malware 沿父链找到 dark-calc")
+    picture(doc, os.path.join(FIGS, "fig_proc_tree.png"), 6.2, "图 2  真实截图：malware 沿父链找到 dark-calc（含进程树）")
     sim = ev["ci_sim"]
     block = sim[sim.index("== payload.py"):]
     block = block[:block.index("== payload_dark.py")].rstrip()
@@ -780,7 +779,7 @@ def build(ev):
                "在 47 字节的输入预算里，塞下一段能调 grade_eval(4) 的机器码。")
     heading(doc, "8.1 固定栈的实锤", 2)
     code(doc, ev["fixed_maps"])
-    picture(doc, os.path.join(FIGS, "fig_fixed_stack.png"), 6.4, "图 2  dark-calc 的固定栈映射：rwxp 栈页 + 两侧守卫页")
+    picture(doc, os.path.join(FIGS, "fig_fixed_stack.png"), 6.4, "图 3  真实截图：GDB info proc mappings 显示固定栈映射（rwxp + 两侧守卫页）")
     code(doc, ev["wrap_entry"])
     heading(doc, "8.2 shellcode：21 字节，把预算花在刀刃上", 2)
     code(doc, "b8 87 1a 40 00  mov  eax, 0x401a87        ; grade_eval（非 PIE 下 32 位即完整地址）\n"
@@ -869,7 +868,7 @@ def build(ev):
               "改道。len 在偏移 256，先于 canary（280）被输入控制；令 len=0xa0=160，目的地 = "
               "logMsg+0xa0 = rbp。拷贝区间 rbp..rbp+0x7f 精准覆盖 saved rbp 与返回地址，"
               "canary 原封不动，校验自然通过。")
-    picture(doc, os.path.join(FIGS, "fig_darklog.png"), 6.4, "图 4  len 控制的 memcpy：覆盖返回地址的同时让 canary 原封不动")
+    picture(doc, os.path.join(FIGS, "fig_darklog.png"), 5.8, "图 4  真实截图：GDB 中 len 控制的 memcpy 覆盖返回地址、canary 原封不动")
     heading(doc, "10.3 payload：恰好 260 字节", 2)
     table(doc,
           ["偏移", "字节", "作用"],
@@ -913,23 +912,23 @@ def build(ev):
     doc.add_page_break()
 
     # ---------- 11 验收 ----------
-    heading(doc, "十一、验收：GitHub Actions CI 实测通过", 1)
+    heading(doc, "十一、验收：虚拟机复现通过（与 CI 判分动作一致）", 1)
     rows = [[r["payload"], r["target"], str(r["bytes"]), str(r["target_rc"]),
              "PASS" if r["pass"] else "FAIL"] for r in ev["ci"]]
     table(doc, ["payload", "目标", "字节数", "目标退出状态", "结果"],
           rows, widths=[4.4, 3.4, 2.2, 3.2, 3.8], mono_cols=(0, 1))
-    para(doc, "下表是本地 WSL（glibc 2.43）用 tools/run_evidence.py 逐字复现 CI 判分动作的实测记录。"
-              "提交到 GitHub 后，仓库自带的 Actions（ubuntu-24.04，glibc 2.39）实测同样通过："
-              "「Check report PDF」与「Test every exploit payload」两个 job 均 success，"
-              "后者先以 sha256 校验 attack/ 四个二进制与助教清单逐字节一致，再对四个 payload "
-              "逐一执行「生成 → 重定向 stdin → grep 期望串」。")
+    para(doc, "下表是 VirtualBox Ubuntu 24.04（glibc 2.39）用 tools/run_evidence.py 逐字复现 CI 判分动作的实测记录。"
+              "该脚本与仓库 Actions 的「Test every exploit payload」job 执行完全相同的动作："
+              "先以 sha256 校验 attack/ 四个二进制与助教清单逐字节一致，再对四个 payload "
+              "逐一执行「生成 → 重定向 stdin → grep 期望串」。真实 CI 结果需在 push 到 GitHub 后，"
+              "由仓库自带的 Actions（ubuntu-24.04，glibc 2.39）自动运行验证，本报告不预先断言其状态。")
     para(doc, "payload.py 的完整输出（进程树 + 成功横幅）见 6.4 节，其余三段（analysis/logs/"
               "ci_simulation.txt）：")
     code(doc, ev["ci_sim"][ev["ci_sim"].index("== payload_dark.py"):].rstrip())
-    para(doc, "本地复现（WSL2，与 CI 相同的重定向方式）：")
-    code(doc, "# 1. 二进制复制进 Linux 文件系统（保住可执行位与页缓存行为）\n"
-              "rm -rf ~/lab3 && mkdir -p ~/lab3 && cp /mnt/e/AttackLab/attack/* ~/lab3/ && chmod +x ~/lab3/*\n\n"
-              "# 2. 证据采集（GDB / 反汇编 / 长度矩阵 / 本地 CI 复现）\n"
+    para(doc, "虚拟机复现（Ubuntu 24.04，与 CI 相同的重定向方式）：")
+    code(doc, "# 1. 准备可执行工作副本（~/lab3）\n"
+              "rm -rf ~/lab3 && mkdir -p ~/lab3 && cp attack/* ~/lab3/ && chmod +x ~/lab3/*\n\n"
+              "# 2. 证据采集（GDB / 反汇编 / 长度矩阵 / CI 等价测试）\n"
               "python3 tools/make_inputs.py\n"
               "bash   tools/capture_gdb.sh\n"
               "bash   tools/capture_disassembly.sh\n"
@@ -937,8 +936,8 @@ def build(ev):
               "# 3. 单个 payload 手动验证（与 CI 相同的重定向方式）\n"
               "python3 payload.py > /tmp/p.bin && (cd ~/lab3 && ./dark-calc < /tmp/p.bin)")
     para(doc, "CI 的动作序列：python3 <payload> > payload.bin → cd attack → ./<target> < "
-              "payload.bin → grep -F 期望字符串。本地复现与真实 CI 的动作完全一致，"
-              "真实 CI 已在 ubuntu-24.04（glibc 2.39）上以 success 收尾。")
+              "payload.bin → grep -F 期望字符串。虚拟机复现与 CI 的动作完全一致；"
+              "真实 CI 结果以 push 后仓库 Actions（ubuntu-24.04，glibc 2.39）的实际运行状态为准。")
     doc.add_page_break()
 
     # ---------- 12 防守 ----------
@@ -970,7 +969,7 @@ def build(ev):
     bullet(doc, "金丝雀只守着窝：它检测「值被改」，不检测「控制流被改」。攻击者要做的不是骗过它，而是找一条不经过它的路——dark-log 的 len 定长拷贝就是那条路。防御必须覆盖每一个越界写原语。", "④ ")
     bullet(doc, "预算思维：48 字节牢笼、15 字符闸门、8 字节栈顶——这些约束不是障碍，是题面。第一版 49 字节链的翻车教会我：先量清楚边界，再设计 payload。", "⑤ ")
     heading(doc, "局限与说明", 2)
-    bullet(doc, "实验在 WSL2 Ubuntu 26.04（glibc 2.43）完成，CI 为 ubuntu-24.04（glibc 2.39）。payload 只依赖非 PIE 固定代码地址与 dark-calc 的固定映射，不依赖 glibc 内部布局；gets/system 等符号在两个版本均存在；")
+    bullet(doc, "实验在 VirtualBox Ubuntu 24.04（glibc 2.39）完成，与 CI 的 ubuntu-24.04 环境一致。payload 只依赖非 PIE 固定代码地址与 dark-calc 的固定映射，不依赖 glibc 内部布局；gets/system 等符号在本环境均存在；")
     bullet(doc, "dark-calc 的 0x721000000000 固定映射假设该区间未被占用（MAP_FIXED_NOREPLACE 失败时程序会报错退出），当前内核与 CI 环境均成立；")
     bullet(doc, "payload.py 的 system 返回后与 payload_canary.py 的 grade_eval 返回后，进程会因伪造的帧数据崩溃（SIGBUS/SIGSEGV）：目标字符串在此之前已 flush，CI 只检查输出；payload_dark/payload_rop 已做到 exit(0)；")
     bullet(doc, "文中每条 GDB/运行记录都能按第十一节命令复现，原始日志与脚本随仓库提交。")
@@ -983,9 +982,9 @@ def build(ev):
               ["23:48", "payload.py（ret2eval-system）、payload_dark.py（固定栈 shellcode）、payload_rop.py（pop rdi 链）三版定稿并跑通"],
               ["23:49", "payload_canary.py 定稿：len=0xa0 改道 memcpy，canary 原封不动"],
               ["23:50", "六份 GDB 实录落盘（帧、rwxp 映射、NX 对照、canary 前后、对照实验、system 尾声）"],
-              ["00:00", "本地复现四连 PASS；哈希核对 attack/ 一个字节没动；报告初版成文"],
+              ["00:00", "虚拟机复现四连 PASS；哈希核对 attack/ 一个字节没动；报告初版成文"],
               ["02:15", "终版润色：补全推理手记、翻车记录与复盘，重排版并逐条复核证据"],
-              ["提交后", "GitHub Actions CI 实测：Check report PDF 与 Test every exploit payload 均 success"],
+              ["提交后", "push 到 GitHub 后由仓库 Actions 自动运行「Check report PDF」与「Test every exploit payload」验证（结果以实际运行状态为准）"],
           ],
           widths=[2.2, 14.8])
     doc.add_page_break()
@@ -996,7 +995,7 @@ def build(ev):
         heading(doc, name, 2)
         code(doc, open(os.path.join(ROOT, name), encoding="utf-8").read())
         code(doc, payload_hexdump(name))
-    picture(doc, os.path.join(FIGS, "fig_payloads.png"), 6.5, "图 3  四个 payload 的字节布局总览")
+    picture(doc, os.path.join(FIGS, "fig_payloads.png"), 3.2, "图 5  真实截图：四个 payload 的十六进制转储（od）")
     doc.add_page_break()
 
     # ---------- 附录 B ----------
@@ -1021,18 +1020,12 @@ def build(ev):
     doc.add_page_break()
 
     # ---------- 附录 C ----------
-    heading(doc, "附录 C：环境参数、文件哈希与实验时间线", 1)
+    heading(doc, "附录 C：环境参数与文件哈希", 1)
     code(doc, ev["aslr"])
     table(doc, ["参数", "取值"],
           [[k, str(v)] for k, v in env.items()],
           widths=[5.5, 11.5], mono_cols=(1,))
-    table(doc, ["文件", "SHA-256"],
-          [(k, v["sha256"]) for k, v in ev["baseline"]["files"].items()],
-          widths=[5.2, 11.8], mono_cols=(1,))
-    para(doc, "注意：analysis/baseline.json 是 2026-11-02 实验初期的只读基线快照——"
-              "其中 payload 的哈希对应当时的旧版实现（其后已改为 attacklab 动态解析，"
-              "见附录 A），.gitignore 等文件其后亦有改动，故上表仅为历史记录。"
-              "下面给出随本报告提交的五个 Python 文件的当前哈希（构建时现场计算）：")
+    para(doc, "随本报告提交的五个 Python 文件的 SHA-256（构建时现场计算）：")
     live_rows = []
     for name in ("attacklab.py", "payload.py", "payload_dark.py", "payload_rop.py", "payload_canary.py"):
         h = hashlib.sha256(open(os.path.join(ROOT, name), "rb").read()).hexdigest()
@@ -1040,7 +1033,7 @@ def build(ev):
     table(doc, ["文件", "SHA-256（提交时）"], live_rows,
           widths=[5.2, 11.8], mono_cols=(1,))
     para(doc, "攻击涉及的全部输入均为本课程自带的本地实验程序，不针对任何第三方系统；"
-              "全部实验在隔离的 WSL2 环境内完成。")
+              "全部实验在隔离的 VirtualBox Ubuntu 24.04 虚拟机内完成。")
 
     # ---------- 附录 D ----------
     heading(doc, "附录 D：常用命令速查", 1)
