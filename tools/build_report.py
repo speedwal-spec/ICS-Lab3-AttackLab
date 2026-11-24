@@ -333,12 +333,14 @@ def section(path, start, end=None, drop_backtrace=False):
     lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
     out, on = [], False
     for ln in lines:
+        # Stop *before* the end marker: it belongs to the next excerpt, and
+        # keeping it here printed every marker twice.
+        if on and end and end in ln:
+            break
         if start in ln:
             on = True
         if on:
             out.append(ln)
-        if end and end in ln:
-            break
     if drop_backtrace:
         kept = []
         for ln in out:
