@@ -187,6 +187,10 @@ def code(doc, text, size=8.5):
         p.paragraph_format.line_spacing = 1.0
         p.paragraph_format.left_indent = Cm(0.25)
         p.paragraph_format.right_indent = Cm(0.15)
+        # Keep short blocks (hexdumps, snippets) on one page; a long listing is
+        # better split than pushed wholesale onto a page of its own.
+        if len(lines) <= 24:
+            p.paragraph_format.keep_with_next = i < len(lines) - 1
         shade_paragraph(p, CODE_BG)
         set_par_border(p, left={"val": "single", "sz": 12, "color": "9AA5B1", "space": 6})
         add_runs(p, line if line else " ", size=size, mono=True)
@@ -524,7 +528,8 @@ def build(ev):
     add_runs(p, "payload_dark.py / payload_rop.py / payload_canary.py：")
     add_runs(p, "“Hope A will be your grade!”", mono=True, size=9.5, bold=True)
     para(doc, "阅读指南：正文里的黄底「推理手记」是第一人称的现场思考——有两次翻车，也有几次灵光一现；"
-              "灰底代码块全部来自 GDB/objdump/终端的原始记录；图 1–4 是按实测数据绘制的示意图（生成脚本 tools/make_figs.py 随仓库提交）。"
+              "灰底代码块全部来自 GDB/objdump/终端的原始记录；图 1–5 是在虚拟机文本控制台上实拍的终端截图"
+              "（用 tools/screens/ 下的脚本重放，VBoxManage screenshotpng 抓取，仅裁掉四周空白）。"
               "所有地址都出自仓库里未被修改的二进制（哈希与 CI 清单逐字节一致），不是纸上谈兵。")
     page_break(doc)
 
@@ -645,7 +650,7 @@ def build(ev):
     code(doc, ev["frame_entry"])
     code(doc, ev["frame_prologue"])
     code(doc, ev["frame_after_gets"])
-    para(doc, "量出来的结果见图 1（按实测数据绘制），完整 ASCII 版如下：")
+    para(doc, "量出来的结果见图 1（终端实拍），完整 ASCII 版如下：")
     code(doc,
          "0x721000801000 ┌──────────────────────────────┐  ← PROT_NONE 守卫页：越界写必死\n"
          "0x721000800ff8 │ ret → 0x401c1f               │  __wrap_main 调 main 压入\n"
@@ -654,7 +659,7 @@ def build(ev):
          "0x721000800fe0 │ saved rbp → 0x721000800ff0    │  ← 偏移 +16\n"
          "0x721000800fd0 │ expression[16]                │  ← gets 从这里开始写，向高地址漫灌\n"
          "               └──────────────────────────────┘")
-    picture(doc, os.path.join(FIGS, "fig_frame_input.png"), 6.3, "图 1  dark-calc 的 input() 栈帧：缓冲区到返回地址 24 字节，到守卫页 48 字节")
+    picture(doc, os.path.join(FIGS, "fig_frame_input.png"), 6.0, "图 1  终端截图：dark-calc 的 input() 栈帧（缓冲区到返回地址 24 字节）")
     table(doc,
           ["地址（固定）", "槽位", "实测值", "说明"],
           [
@@ -748,7 +753,7 @@ def build(ev):
     para(doc, "（GDB 的工作目录不是 attack/，所以 sh 报 ./malware: not found——CI 是在 attack/ "
               "里跑的，能找到。断点证实 rdi=0x6030d0、command_buf=\"./malware\"。）")
     heading(doc, "6.4 端到端：起爆成功", 2)
-    picture(doc, os.path.join(FIGS, "fig_proc_tree.png"), 6.2, "图 2  payload.py 的运行现场：malware 沿父链找到 dark-calc")
+    picture(doc, os.path.join(FIGS, "fig_proc_tree.png"), 6.4, "图 2  终端截图：malware 沿父链找到 dark-calc（进程树与成功横幅）")
     sim = ev["ci_sim"]
     block = sim[sim.index("== payload.py"):]
     block = block[:block.index("== payload_dark.py")].rstrip()
@@ -801,7 +806,7 @@ def build(ev):
                "在 47 字节的输入预算里，塞下一段能调 grade_eval(4) 的机器码。")
     heading(doc, "8.1 固定栈的实锤", 2)
     code(doc, ev["fixed_maps"])
-    picture(doc, os.path.join(FIGS, "fig_fixed_stack.png"), 6.4, "图 3  dark-calc 的固定栈映射：8 MiB rwxp，两端各一页守卫页")
+    picture(doc, os.path.join(FIGS, "fig_fixed_stack.png"), 6.4, "图 3  终端截图：dark-calc 的固定栈映射（8 MiB rwxp，两端各一页守卫页）")
     code(doc, ev["wrap_entry"])
     heading(doc, "8.2 shellcode：21 字节，把预算花在刀刃上", 2)
     code(doc, "b8 87 1a 40 00  mov  eax, 0x401a87        ; grade_eval（非 PIE 下 32 位即完整地址）\n"
@@ -890,7 +895,7 @@ def build(ev):
               "改道。len 在偏移 256，先于 canary（280）被输入控制；令 len=0xa0=160，目的地 = "
               "logMsg+0xa0 = rbp。拷贝区间 rbp..rbp+0x7f 精准覆盖 saved rbp 与返回地址，"
               "canary 原封不动，校验自然通过。")
-    picture(doc, os.path.join(FIGS, "fig_darklog.png"), 5.8, "图 4  dark-log：len 控制 memcpy 落点，改写返回地址而 canary 原封不动")
+    picture(doc, os.path.join(FIGS, "fig_darklog.png"), 5.6, "图 4  终端截图：dark-log 的 canary 保持原值，返回地址被 memcpy 改写")
     heading(doc, "10.3 payload：恰好 260 字节", 2)
     table(doc,
           ["偏移", "字节", "作用"],
@@ -1002,7 +1007,7 @@ def build(ev):
           ["时间", "事件"],
           [
               ["2026-11-23", "22:09–22:55 在 VirtualBox Ubuntu 24.04 中完成静态勘察、六份 GDB 实录、长度矩阵与四连 PASS"],
-              ["2026-11-24", "07:08–07:19 系统自动升级 libc6 与内核；17:12–17:21 重跑全部证据，仍 4/4 PASS，实录与哈希随之刷新"],
+              ["2026-11-24", "07:08–07:19 系统自动升级 libc6 与内核；17:12–17:21 重跑全部证据（仍 4/4 PASS）；17:45 在文本控制台重拍五张终端截图"],
               ["push 之后", "由仓库 Actions 运行「Check report PDF」与「Test every exploit payload」，结果以实际运行状态为准"],
           ],
           widths=[3.2, 13.8])
@@ -1010,6 +1015,7 @@ def build(ev):
 
     # ---------- 附录 A ----------
     heading(doc, "附录 A：四个 payload 的完整清单与十六进制转储", 1)
+    picture(doc, os.path.join(FIGS, "fig_payloads.png"), 4.2, "图 5  终端截图：四个 payload 的字节转储（od）")
     for name in ("payload.py", "payload_dark.py", "payload_rop.py", "payload_canary.py"):
         heading(doc, name, 2)
         code(doc, open(os.path.join(ROOT, name), encoding="utf-8").read())

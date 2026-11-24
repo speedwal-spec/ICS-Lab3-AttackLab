@@ -200,6 +200,14 @@ gcc 13.3.0；GNU gdb 15.1；binutils 2.42；Python 3.12.3；
 2026-11-24 系统自动升级到 7.0.0-43 / 8.12 后按 `## 5` 的命令整体重跑，
 四个 payload 仍 4/4 PASS，`analysis/` 下的实录与日志即第二次运行的结果。
 
-报告插图由 `tools/make_figs.py` 用 Pillow 按实测数据绘制（示意图，不是屏幕截图）。
-脚本按 Windows 字体路径（微软雅黑）绘制，在装有该字体的主机上执行
-`python3 tools/make_figs.py` 即可重画；Linux 下会退化为默认字体。
+报告里的五张图是**虚拟机文本控制台的实拍截图**，不是画出来的示意图：
+
+```sh
+bash tools/screens/setup.sh          # 准备 ~/lab3 工作副本与 /tmp/lab3-inputs
+bash tools/screens/s1.sh             # 各场景：在 guest 的 tty 上直接执行
+# 宿主机侧抓屏（每个场景一次）：
+VBoxManage controlvm ICS-AttackLab-Ubuntu2404 screenshotpng shot.png
+```
+
+截图后只裁掉四周空白，内容就是脚本在终端上的真实输出；命令行为
+`bash tools/screens/sN.sh`，可在仓库里逐条复现。
