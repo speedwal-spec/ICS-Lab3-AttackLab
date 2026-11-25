@@ -2,9 +2,14 @@
 set pagination off
 set confirm off
 set disable-randomization off
-file ~/lab3/dark-calc-nx
+python
+import os
+gdb.execute("file " + os.path.join(os.environ["ATTACKLAB_WORKDIR"], "dark-calc-nx"))
+end
 break *input
-run < /tmp/lab3-inputs/shellcode.bin
+python
+gdb.execute("run < " + os.path.join(os.environ["ATTACKLAB_FIXTURE_DIR"], "shellcode.bin"))
+end
 nexti
 nexti
 nexti

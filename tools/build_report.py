@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Build the Lab 3 report DOCX (analysis/Lab3-AttackLab-实验报告.docx) — geek edition.
+"""Build the Lab 3 report DOCX, preserving the report's visual design.
 
-The narrative is first-person and chronological: hypothesis → attempt → failure →
-insight → working payload.  All numbers, transcripts and hexdumps are pulled from
-the recorded evidence in analysis/gdb, analysis/logs, analysis/disassembly and
-the payload scripts themselves, so nothing in the prose is invented.
+Runtime results and verbatim excerpts are loaded from analysis/logs and
+analysis/gdb.  Static disassembly, payload structure and the explanatory prose
+are separate design/analysis inputs; they are not represented as transcripts.
+Optional evidence is rendered only when its section marker is present, never as
+an empty block.  The local checks reproduce the core payload-generation, stdin
+and stdout-matching steps, not every detail of GitHub Actions.
 """
 import hashlib
 import json
@@ -380,8 +382,12 @@ def disasm_func(binary, name, next_name):
 
 
 def payload_hexdump(script):
+    """Run only a generator to document its input bytes, not to claim success."""
     proc = subprocess.run([sys.executable, os.path.join(ROOT, script)],
                           cwd=ROOT, capture_output=True, timeout=15)
+    if proc.returncode:
+        raise RuntimeError(f"{script} failed ({proc.returncode}): "
+                           f"{proc.stderr.decode('utf-8', 'replace')}")
     data = proc.stdout
     lines = [f"# {script}  ->  {len(data)} bytes (incl. trailing newline)"]
     for off in range(0, len(data), 16):
@@ -390,6 +396,40 @@ def payload_hexdump(script):
         asc = "".join(chr(b) if 32 <= b < 127 else "." for b in chunk)
         lines.append(f"{off:04x}  {hexs:<47}  |{asc}|")
     return "\n".join(lines)
+
+
+def optional_evidence(path, markers=()):
+    """Return selected excerpts only when an evidence file/marker exists.
+
+    New evidence may arrive after this report builder.  An absent file, or an
+    unexpected log without an agreed marker, contributes no text: callers also
+    skip its heading rather than publishing a blank evidence section.
+    """
+    if not os.path.isfile(path):
+        return []
+    excerpts = []
+    for start, end in markers:
+        excerpt = section(path, start, end).strip()
+        if excerpt:
+            excerpts.append(excerpt)
+    return excerpts
+
+
+def ci_transcript(ci_log, payload):
+    """Extract one stored run, including its real stdout/stderr and status."""
+    if not payload:
+        return ""
+    match = re.search(r"(?ms)^== " + re.escape(payload) +
+                      r" -> .*?(?=^== |\Z)", ci_log)
+    return match.group(0).rstrip() if match else ""
+
+
+def required_excerpt(ev, key, source):
+    """Refuse to silently publish a blank block for promised core evidence."""
+    text = ev.get(key, "").strip()
+    if not text:
+        raise ValueError(f"missing required evidence {key!r} in {source}")
+    return text
 
 
 # ---------------------------------------------------------------- evidence
@@ -411,15 +451,15 @@ def load_evidence():
     g2 = os.path.join(GDB, "02_fixed_stack.txt")
     ev["wrap_entry"] = section(g2, "### at main(), called through __wrap_main", "### anonymous mapping")
     maps = section(g2, "Mapped address spaces:", "### break after gets")
-    ev["fixed_maps"] = "\n".join(ln for ln in maps.splitlines() if "0x00007210" in ln)
+    ev["fixed_maps"] = "\n".join(ln for ln in maps.splitlines() if "0x7210" in ln)
     ev["shellcode_inspect"] = section(g2, "### break after gets(); inspect the injected shellcode", "### watch grade_eval receive")
     ev["grade_hit"] = section(g2, "### watch grade_eval receive edi=4", "### continue to program exit")
     ev["shellcode_result"] = section(g2, "### continue to program exit", None)
 
     g3 = os.path.join(GDB, "03_nx.txt")
-    ev["nx_frame"] = section(g3, "### input() frame on the ordinary thread stack", "### force the CPU")
+    ev["nx_frame"] = section(g3, "### input() frame on the ordinary thread stack", "Mapped address spaces:")
     ev["nx_maps"] = "\n".join(ln for ln in section(g3, "Mapped address spaces:", "### force the CPU").splitlines()
-                              if "[stack]" in ln)
+                               if "[stack]" in ln)
     ev["nx_fault"] = section(g3, "### force the CPU to fetch", None)
 
     g4 = os.path.join(GDB, "04_canary.txt")
@@ -433,15 +473,54 @@ def load_evidence():
     ev["smash_after"] = section(g4b, "### continue: the canary check must abort the process", "### inferior state", drop_backtrace=True)
 
     g5 = os.path.join(GDB, "05_system_epilogue.txt")
-    ev["sys_site"] = section(g5, "### returned into eval's system call site", "### after system() returns")
-    ev["sys_after"] = section(g5, "### after system() returns: the frame pointer", "### let eval's epilogue")
-    ev["sys_epilogue"] = section(g5, "### let eval's epilogue run to its natural end", None)
+    # Do not mix a superseded exploit transcript with the current implementation.
+    # The old markers described 0x4242... and SIGBUS; the current payload keeps
+    # main's fixed rbp and returns through __wrap_main.
+    system_text = open(g5, encoding="utf-8", errors="replace").read()
+    system_is_current = ("main's fixed frame pointer" in system_text
+                         and "0x4242424242424242" not in system_text)
+    if system_is_current:
+        ev["sys_site"] = section(g5, "### returned into eval's system call site", "### after system() returns")
+        ev["sys_after"] = section(g5, "### after system() returns: main's fixed frame pointer", "### eval's leave restores")
+        ev["sys_epilogue"] = section(g5, "### eval's leave restores the wrapper return path", None)
+    else:
+        ev["sys_site"] = ev["sys_after"] = ev["sys_epilogue"] = ""
+
+    # Additional official-question evidence (added by tools/capture_gdb.sh).
+    ev["call_before"] = optional_evidence(os.path.join(GDB, "00_call_return.txt"), [
+        ("### Q4: main immediately before call input", "### Q4: first instruction")])
+    ev["call_entry"] = optional_evidence(os.path.join(GDB, "00_call_return.txt"), [
+        ("### Q4: first instruction of input after call", "### Q2:")])
+    ev["input_leave"] = optional_evidence(os.path.join(GDB, "00_call_return.txt"), [
+        ("### Q5: step leave", "### Q5: step ret")])
+    ev["input_return"] = optional_evidence(os.path.join(GDB, "00_call_return.txt"), [
+        ("### Q5: step ret and return into caller", "### Q1:")])
+    ev["length_dumps"] = optional_evidence(os.path.join(GDB, "06_length_overflow.txt"), [
+        ("### n=20 after gets", "### n=32 after gets"),
+        ("### n=32 after gets", None)])
+    ev["main_memory"] = optional_evidence(os.path.join(GDB, "07_main_memory.txt"), [
+        ("### x/9bx main", None)])
+
+    ev["ci_records"] = {r["payload"]: r for r in ev["ci"]}
+    ev["ci_blocks"] = {r["payload"]: ci_transcript(ev["ci_sim"], r["payload"])
+                       for r in ev["ci"]}
+    ev["ci_blocks"]["other"] = "\n\n".join(
+        block for name, block in ev["ci_blocks"].items()
+        if name != "payload.py" and block)
+    command_log = os.path.join(LOGS, "command_substitution.txt")
+    if os.path.isfile(command_log):
+        ev["command_substitution"] = open(command_log, encoding="utf-8",
+                                           errors="replace").read()
 
     return ev
 
 
 # ---------------------------------------------------------------- report
 def build(ev):
+    ci_records = ev["ci_records"]
+    ci_blocks = ev["ci_blocks"]
+    ci_pass_count = sum(bool(r.get("pass")) for r in ev["ci"])
+    ci_total = len(ev["ci"])
     doc = Document()
     doc.core_properties.title = "ICS-26Fall-FDU AttackLab 实验报告"
     doc.core_properties.author = "AttackLab"
@@ -463,20 +542,23 @@ def build(ev):
     rule(doc, color="1F4E79", size=12, before=16, after=12)
     para(doc, "缓冲区溢出 · 栈空间执行 · ROP · Stack Canary", size=13,
          align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x55, 0x5A, 0x66))
-    para(doc, "—— 一份包含翻车记录与血泪复盘的技术报告 ——", size=11.5,
+    para(doc, "—— 包含设计推导、调试记录与复盘的技术报告 ——", size=11.5,
          align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x7A, 0x80, 0x8A))
     for _ in range(3):
         doc.add_paragraph()
     para(doc, "姓名：____________________　　学号：____________________",
          size=12, align=WD_ALIGN_PARAGRAPH.CENTER)
     doc.add_paragraph()
-    para(doc, "日期：2026 年 11 月 24 日", size=11,
+    para(doc, "日期：2026 年 11 月 25 日", size=11,
          align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x55, 0x5A, 0x66))
     for _ in range(2):
         doc.add_paragraph()
-    para(doc, "提交内容：attacklab.py、payload.py、payload_dark.py、payload_rop.py、payload_canary.py 与本 PDF",
+    para(doc, "提交内容：attacklab.py、payload.py、payload_dark.py、payload_rop.py、payload_canary.py 与本 PDF；"
+              "仓库另含 attack/（原始靶机）、src/（参考源码）、tools/（复现与检查脚本）及 analysis/（GDB 实录、"
+              "长度矩阵、反汇编与终端截图等证据）",
          size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x7A, 0x80, 0x8A))
-    para(doc, "四个 payload 均在 VirtualBox Ubuntu 24.04 虚拟机中以与 CI 完全一致的判分动作复现通过；GDB 实录、长度矩阵、哈希校验全部随仓库提交。",
+    para(doc, f"四个 payload 在 VirtualBox Ubuntu 24.04 的本地核心判分复现中 {ci_pass_count}/{ci_total} 命中预期 stdout；"
+              "GDB 实录、长度矩阵、哈希校验随仓库提交，报告生成器按小节读取这些记录。",
          size=10.5, align=WD_ALIGN_PARAGRAPH.CENTER, color=RGBColor(0x7A, 0x80, 0x8A))
     page_break(doc)
 
@@ -493,7 +575,7 @@ def build(ev):
         "八、任务五：48 字节牢笼里的 shellcode（25 测试 + 5 报告）",
         "九、任务六：NX 之下的 ROP 攻击（10 测试 + 10 报告）",
         "十、任务七：绕过 Stack Canary（10 测试 + 10 报告）",
-        "十一、验收：虚拟机复现通过（与 CI 判分动作一致）",
+        "十一、验收：虚拟机记录与已完成的公开 CI",
         "十二、防守视角：从攻击到防御",
         "十三、复盘：踩过的坑与捡到的顿悟",
         "附录 A：四个 payload 的完整清单与十六进制转储",
@@ -507,33 +589,35 @@ def build(ev):
 
     # ---------- 1 总览 ----------
     heading(doc, "一、实验总览：四个靶机，四把钥匙", 1)
-    para(doc, "这份报告是我把四个 payload 全部跑通、并以与 CI 完全一致的判分动作在 VirtualBox Ubuntu 24.04 虚拟机复现通过之后才动笔的——不是实验方案，"
-              "是战后复盘。所以先把结论拍在桌上，再讲每一枪是怎么开出去的、哪几枪打空了、"
-              "最后是怎么命中的。")
+    para(doc, "本报告依据静态分析、GDB 观察和运行记录组织实验过程。先概述各任务的结果与关键机制，"
+              "再区分设计推导、事后复现和原始实录，说明 payload 的构造依据与实现限制。")
     table(doc,
           ["任务", "分值", "钥匙（一句话原理）", "状态"],
           [
               ["① 观察 input 栈帧", "20（报告）", "断点之下，帧无秘密", "完成，第四节"],
               ["② 不同长度输入测试", "5（报告）", "用 '1' 串丈量出生死线：23/24 与 47/48", "完成，第五节"],
-              ["③ 溢出执行 ./malware", "25+5", "链子塞不进 48 字节牢笼，就复用 eval 里现成的那行 system 调用", "测试 PASS，第六节"],
+              ["③ 溢出执行 ./malware", "25+5", "链子塞不进 48 字节牢笼，就复用 eval 里现成的那行 system 调用",
+               f"stdout 命中：{ci_records['payload.py']['pass']}，第六节"],
               ["④ GDB 检查 main 机器码", "5（报告）", "55 48 89 e5…… e8 的 rel32 手算一遍", "完成，第七节"],
-              ["⑤ 栈空间执行", "25+5", "dark-calc 的栈是 mmap 出来的 rwxp 固定地址——ASLR 与 NX 双杀失败", "测试 PASS，第八节"],
-              ["⑥ ROP", "10+10", "CPU 只认字节流：41 5f c3 往前挪一个字节，pop r15 就变成 pop rdi", "测试 PASS，第九节"],
-              ["⑦ Canary", "10+10", "金丝雀没瞎——只是 memcpy 的落点被我改了，绕过了它看不见的地方", "测试 PASS，第十节"],
+              ["⑤ 栈空间执行", "25+5", "dark-calc 的栈是 mmap 出来的 rwxp 固定地址——ASLR 与 NX 双杀失败",
+               f"stdout 命中：{ci_records['payload_dark.py']['pass']}，第八节"],
+              ["⑥ ROP", "10+10", "CPU 只认字节流：41 5f c3 往前挪一个字节，pop r15 就变成 pop rdi",
+               f"stdout 命中：{ci_records['payload_rop.py']['pass']}，第九节"],
+              ["⑦ Canary", "10+10", "金丝雀没瞎——只是 memcpy 的落点被我改了，绕过了它看不见的地方",
+               f"stdout 命中：{ci_records['payload_canary.py']['pass']}，第十节"],
           ],
           widths=[3.4, 1.9, 9.3, 2.4])
-    para(doc, "四个 payload 的实测结果（VirtualBox Ubuntu 24.04 虚拟机复现，判分动作与仓库 CI 完全一致；完整输出见 analysis/logs/ci_simulation.txt）：")
-    p = doc.add_paragraph(style="List Bullet")
-    add_runs(p, "payload.py → dark-calc：")
-    add_runs(p, "“### You have successfully detonated the bomb! Congratulations! ###”", mono=True, size=9.5, bold=True)
-    p = doc.add_paragraph(style="List Bullet")
-    add_runs(p, "payload_dark.py / payload_rop.py / payload_canary.py：")
-    add_runs(p, "“Hope A will be your grade!”", mono=True, size=9.5, bold=True)
-    para(doc, "阅读指南：正文里的黄底「推理手记」是第一人称的现场思考——有两次翻车，也有几次灵光一现；"
-              "灰底代码块全部来自 GDB/objdump/终端的原始记录；图 1–5 是在虚拟机文本控制台上实拍的终端截图"
-              "（用 tools/screens/ 下的脚本重放，VBoxManage screenshotpng 抓取，仅裁掉四周空白）。"
-              "截图与附录 B 的实录来自不同次运行：ASLR 地址、canary 值与 PID 每次不同，"
-              "固定地址、偏移与判定结果不变。所有地址都出自仓库里未被修改的二进制（哈希与 CI 清单逐字节一致），不是纸上谈兵。")
+    para(doc, "四个 payload 的运行记录来自 VirtualBox Ubuntu 24.04 的本地核心判分复现（"
+              "analysis/logs/ci_simulation.json/.txt）。下表由结构化记录生成；bool 仅表示"
+              "目标 stdout 是否包含预期串，不表示进程正常退出。")
+    table(doc, ["payload", "目标", "目标退出状态", "stdout 预期串命中"],
+          [[r["payload"], r["target"], str(r["target_rc"]), str(bool(r["pass"]))]
+           for r in ev["ci"]], widths=[4.2, 4.0, 3.8, 5.0], mono_cols=(0, 1))
+    para(doc, "阅读指南：黄底「推理手记」用于设计推导或明确标注的事后复现；"
+              "带文件名或小节标记的灰底块摘自 GDB/objdump/终端记录，栈图与带注释的指令清单是分析示意。"
+              "图 1–5 是虚拟机文本控制台的终端截图，可用 tools/screens/ 重放场景；"
+              "截图与附录 B 来自不同次运行，ASLR 地址、canary 值与 PID 可变。"
+              "报告中的运行结果引用现有证据，构建脚本本身不运行 exploit 验收，也不取代 CI。")
     page_break(doc)
 
     # ---------- 2 环境 ----------
@@ -549,7 +633,7 @@ def build(ev):
               ["Python", env["python"]],
               ["ASLR（randomize_va_space）", env["aslr"] + "（全量随机化开启）"],
               ["GDB 默认 disable-randomization", env["gdb_default_disable_randomization"] + "——实验会话全部显式 off，不然看到的栈地址是假象"],
-              ["CI 环境", "GitHub Actions ubuntu-24.04（glibc 2.39，Python 3.12，每命令超时 15 s）"],
+              ["CI 环境", "GitHub Actions ubuntu-24.04；runner 版本与 payload 测试超时见 workflow"],
           ],
           widths=[5.0, 12.0])
     para(doc, "四个 payload 只依赖非 PIE 主映像的固定代码地址和 dark-calc 的固定映射，"
@@ -560,8 +644,9 @@ def build(ev):
     heading(doc, "2.3 打法", 2)
     bullet(doc, "静态勘察：readelf/nm/objdump 把段、符号、指令字节全摊开；tools/gadgets.py 按字节串扫 gadget（0x5f 0xc3 之类）；", "① ")
     bullet(doc, "动态观察：GDB 批量会话（tools/gdb/*.gdb）断点看帧、看页权限、看寄存器，全程关掉 gdb 的地址固定化；", "② ")
-    bullet(doc, "端到端：tools/run_evidence.py 在虚拟机中逐字复现 CI 的「生成 payload → 重定向 stdin → grep 期望串」；", "③ ")
-    bullet(doc, "复盘：tools/build_report.py 把上面的原始记录直接拼成本报告，中间不经过手抄。", "④ ")
+    bullet(doc, "端到端：tools/run_evidence.py 在虚拟机中记录「生成 payload → 重定向 stdin → 匹配 stdout」的核心判分步骤；", "③ ")
+    bullet(doc, "复盘：tools/build_report.py 读取已有日志的小节、结构化运行结果、静态反汇编及手工分析文字；"
+                "payload hexdump 只记录生成器输出，不是目标运行证据。", "④ ")
     page_break(doc)
 
     # ---------- 3 静态勘察 ----------
@@ -587,7 +672,7 @@ def build(ev):
     para(doc, "要点：expression 只有 16 字节却喂给无界的 gets()；input() 里没有 canary；eval 的 "
               "MAXLEN=15 截断发生在 gets 之后——它只能决定 shell 命令里表达式的长短，"
               "拦不住已经发生的栈溢出。grade_eval(4) 打印「Hope A will be your grade!」，"
-              "是后面四个任务共同的控制流终点。")
+              "是任务五至七的目标函数；任务三的目标则是 system(\"./malware\")。")
     heading(doc, "3.3 那个名叫「栈」的 mmap", 2)
     code(doc, disasm_func("dark-calc", "init_fixed_stack", "__wrap_main"))
     code(doc, disasm_func("dark-calc", "__wrap_main", "__libc_csu_init"))
@@ -636,10 +721,8 @@ def build(ev):
 
     # ---------- 4 任务一 ----------
     heading(doc, "四、任务一：观察 input 的栈帧（20 分）", 1)
-    think(doc, "断点一挂上，第一眼看到的就不是「正常栈」：main 还没进，rsp 已经停在 "
-               "0x721000800ff8——离 0x721000801000 的守卫页只有 8 个字节，而下面是一整块 "
-               "mmap 出来的匿名映射。也就是说 dark-calc 每次运行，栈的位置都钉死在同一个地址。"
-               "这个发现当时只是一句「哦？」，后来它同时成就了任务五，也坑了任务三。")
+    think(doc, "设计推导：固定映射使 dark-calc 的调用栈位置稳定，可结合反汇编推导"
+               "input 的缓冲区、saved rbp、返回地址与守卫页之间的偏移；以下 GDB 小节用于核对这些推导。")
     heading(doc, "4.1 理论：帧是 ABI 写死的剧本", 2)
     para(doc, "x86-64 System V ABI 下，被调函数开场三连：push rbp; mov rbp,rsp; sub rsp,N。"
               "rbp 钉住帧基址，局部变量在 rbp 之下，call 压入的返回地址在 rbp+8。"
@@ -650,10 +733,32 @@ def build(ev):
     heading(doc, "4.2 静态：序言到 gets 的每一步", 2)
     code(doc, disasm_range("dark-calc", 0x401977, 0x40199F))
     heading(doc, "4.3 实测：GDB 里把帧量了一遍", 2)
-    code(doc, ev["frame_entry"])
-    code(doc, ev["frame_prologue"])
-    code(doc, ev["frame_after_gets"])
-    para(doc, "量出来的结果见图 1（终端实拍），完整 ASCII 版如下：")
+    para(doc, "先正面回答官网 Q1–Q3，下面三段 GDB 摘录就是这三个答案的依据。")
+    bullet(doc, "调用 input 的是 main：main+9（0x401acc）处执行 call input，把下一条指令 "
+                "0x401ad1（main+14）压栈作为返回地址，然后转入 input。", "Q1 ")
+    bullet(doc, "前三条指令是 prologue：push rbp 保存调用者 main 的帧指针；mov rbp,rsp 把帧基址"
+                "钉在当前栈顶；sub rsp,0x10 为 expression[16] 开出 16 字节局部空间。"
+                "此刻 $rbp 指向 0x721000800fe0，其中 0x721000800ff0 正是 main 的 rbp——"
+                "来自刚才那条 push rbp，随后 mov rbp,rsp 才把它变成 input 自己的帧基址。", "Q2 ")
+    bullet(doc, "$rbp+8（0x721000800fe8）里是 0x401ad1，也就是 call input 压入的返回地址"
+                "（main+14）。它由 main 一侧的 call 写入，input 自己的指令没有写过它；"
+                "4.4 节逐指令复现了压栈那一刻。", "Q3 ")
+    code(doc, required_excerpt(ev, "frame_entry", "01_frame_and_main.txt"))
+    code(doc, required_excerpt(ev, "frame_prologue", "01_frame_and_main.txt"))
+    code(doc, required_excerpt(ev, "frame_after_gets", "01_frame_and_main.txt"))
+    if ev["call_before"] or ev["call_entry"]:
+        heading(doc, "4.4 官网任务一 Q4：call input 如何写入返回地址", 2)
+        para(doc, "在 main 的 call input 前逐指令执行：call 把下一条指令地址 0x401ad1 "
+                  "压入栈顶，再转入 input；该栈槽随后成为 input 的 rbp+8。以下来自补充复现日志。")
+        for excerpt in ev["call_before"] + ev["call_entry"]:
+            code(doc, excerpt)
+    if ev["input_leave"] or ev["input_return"]:
+        heading(doc, "4.5 官网任务一 Q5：leave、ret 与调用者现场", 2)
+        para(doc, "leave 先令 rsp=rbp，再弹出 saved rbp；ret 弹出 0x401ad1 到 rip，"
+                  "回到 main+14。prologue 建立帧，call/ret 转移控制流并压入/弹出返回地址。")
+        for excerpt in ev["input_leave"] + ev["input_return"]:
+            code(doc, excerpt)
+    para(doc, "量出来的结果见图 1（终端截图），栈布局示意如下：")
     code(doc,
          "0x721000801000 ┌──────────────────────────────┐  ← PROT_NONE 守卫页：越界写必死\n"
          "0x721000800ff8 │ ret → 0x401c1f               │  __wrap_main 调 main 压入\n"
@@ -681,10 +786,9 @@ def build(ev):
 
     # ---------- 5 任务二 ----------
     heading(doc, "五、任务二：长度矩阵与崩溃边界（5 分）", 1)
-    think(doc, "一开始只是想看看 15/16 的截断区别，结果第一次跑 8 个 '1' 就撞见鬼了："
-               "算术结果先打印，「Enter an expression」的提示反而后打印。第一反应是怀疑自己重定向写错了，来回核了三遍——最后才反应过来：stdout 是全缓冲，"
-               "printf 的提示还憋在缓冲区里，system() 的子进程却直接写管道——所以行序倒置。"
-               "顺手把长度从 0 一路扫到 200，两条生死线当场现形。")
+    think(doc, "设计推导：重定向到管道时 stdout 采用全缓冲，printf 的提示可能仍在父进程"
+               "缓冲区，而 system() 的子进程可先写管道，因此行序不同于交互终端。"
+               "length_tests.json 保存了事后批量复现的实际输出与退出状态。")
     heading(doc, "5.1 方法", 2)
     para(doc, "向 dark-calc 喂 n 个 '1' 组成的行（n ∈ {0,1,3,8,15,16,20,23,24,31,32,47,48,64,200}），"
               "记录退出状态与 stdout。选 '1' 串是因为 eval 包装出的 echo $((...)) 恒为合法算术式，"
@@ -711,13 +815,17 @@ def build(ev):
             note = "生死线②：gets 的 NUL 写进 PROT_NONE 守卫页，gets 自己先崩（SIGSEGV）"
         rows.append([str(n), str(rc), note])
     table(doc, ["输入长度 n", "退出状态", "现象与解释"], rows, widths=[2.4, 2.4, 12.2])
-    think(doc, "n=24 那次崩得最有信息量。GDB 一查：0x401ad1 的最低字节被 gets 的 NUL 清零，"
-               "变成了 0x401a00——正好落进 eval 的正中间（mov [rbp-4],eax），而 rbp 此时是 "
-               "0x3131…，往那个地址写立即数直接 SIGBUS。换句话说：溢出并不需要把地址整个"
-               "覆盖成自己想要的值，改掉一个字节就足以把程序送进一条完全陌生的指令流。"
-               "顺带一提，n=24 是 SIGBUS 而 n=31、32 是 SIGSEGV——信号不同只是因为死法不同，"
-               "都是死。")
-    heading(doc, "5.3 MAXLEN=15 的截断：迟到的闸门", 2)
+    if ev["length_dumps"]:
+        heading(doc, "5.3 题面指定的 20/32 字符栈转储", 2)
+        para(doc, "以下补充复现日志在 gets 返回后检查 rbp-0x10。20 字符输入的部分 saved rbp "
+                  "被覆盖，但返回地址仍为 0x401ad1；32 字符输入则同时覆盖 saved rbp 与返回地址。")
+        for excerpt in ev["length_dumps"]:
+            code(doc, excerpt)
+    think(doc, "机制分析：n=24 时，NUL 将返回地址从 0x401ad1 改为 0x401a00，"
+               "使控制流进入 eval 中间；后续非法 rbp 写入与该次记录的信号相符。"
+               "n=31、32 的返回地址被 '1' 字节进一步破坏。下表的 rc 直接取自 "
+               "length_tests.json，不把信号差异泛化为其他环境下的保证。")
+    heading(doc, "5.4 MAXLEN=15 的截断：迟到的闸门", 2)
     para(doc, "eval 只在 strlen(command_buf) > 15 时截断（0x4019e9 处 cmp rax,0xf）。"
               "16–23 字节输入早已越出 expression[16]，程序照样把前 15 个字符包进 echo $(( )) "
               "执行——闸门设在溢出之后，拦得住 shell 表达式的长度，拦不住已经发生的栈破坏。"
@@ -726,59 +834,65 @@ def build(ev):
 
     # ---------- 6 任务三 ----------
     heading(doc, "六、任务三：溢出执行 ./malware（25 测试 + 5 报告）", 1)
-    think(doc, "第一版方案是教科书三连：24 字节 padding + pop rdi; ret + command_buf + "
-               "system@plt = 48 字节，再算上 gets 的 NUL 就是 49 字节。结果程序连输出都没有，"
-               "直接 SIGSEGV——死在了 gets 自己手里：NUL 被写进了 0x721000801000 的守卫页，"
-               "连 ret 都没摸到。任务一量出的「48 字节牢笼」在这里反手就是一记耳光。")
+    think(doc, "设计推导：常规的 24 字节 padding + pop rdi; ret + 参数 + system@plt "
+               "需要 48 字节输入，gets 还需在下一字节写 NUL。由任务一的固定栈边界可知，"
+               "该 NUL 将落到 PROT_NONE 守卫页，因此不选用这条三 qword 链。"
+               "len48_fault 的补充复现验证了这类越界终止行为；这里不把它描述为未留痕的初次试验。")
     para(doc, "硬约束：单次输入 ≤ 47 字节，而覆盖返回地址槽就要 24 字节，剩给整条链的只有 23 字节，"
               "放不下三个 qword。换思路——链子放不下，就找现成的调用点。")
     heading(doc, "6.1 翻盘点：eval 里那行现成的 system 调用", 2)
     code(doc, disasm_range("dark-calc", 0x401A6B, 0x401A86))
-    para(doc, "0x401a6b 是 eval 内部「mov edi,0x6030d0; call system@plt」的起始：它自带 "
-              "pop rdi 的功能，还自带被调用目标。而 rdi 指向的 command_buf，恰好刚刚被 "
-              "input() 的 strcpy(command_buf, expression) 填进了这个 payload 开头第一个 NUL "
-              "之前的字符串——也就是 \"./malware\"。自己人，全对上了。")
-    heading(doc, "6.2 payload：32 字节，一次到位", 2)
+    para(doc, "0x401a6b 是 eval 内部「mov edi,0x6030d0; call system@plt」的起始。"
+              "mov edi 是立即数赋值，不会弹栈，也不是 pop rdi；这两条指令直接设置 system 的"
+              "第一个参数并完成调用。input() 的 strcpy(command_buf, expression) 已把 payload "
+              "开头第一个 NUL 之前的字符串 \"./malware\" 复制到 command_buf，正好符合参数要求。")
+    heading(doc, "6.2 payload：32 字节的设计", 2)
     table(doc,
           ["偏移", "字节", "作用"],
           [
               ["0 – 9", "\"./malware\" + NUL", "command_buf 的 shell 命令（strcpy 拷到第一个 NUL 为止）"],
               ["10 – 15", "'A' × 6", "凑满 16 字节（expression 的容量）"],
-              ["16 – 23", "'B' × 8", "伪造 saved rbp（这条路径之后不再用 rbp）"],
+              ["16 – 23", "fixed_stack_top - 0x10", "保留 main 的固定帧指针，使 eval 的 leave 恢复到 __wrap_main 的返回路径"],
               ["24 – 31", "0x401a6b（小端）", "返回地址 → eval 的 system 调用点"],
           ],
           widths=[2.0, 5.4, 9.6], mono_cols=(1,))
     code(doc, payload_hexdump("payload.py"))
     heading(doc, "6.3 GDB 里对一遍账", 2)
-    code(doc, ev["sys_site"])
-    code(doc, ev["sys_after"])
-    code(doc, ev["sys_epilogue"])
-    para(doc, "（这次 GDB 就在 ~/lab3 里跑，sh 找得到 ./malware：进程树和两行 ### 横幅都是子进程的真实输出，"
-              "之后调试器才回到父进程的断点。断点证实 rdi=0x6030d0、command_buf=\"./malware\"；"
-              "最后那条 SIGBUS 来自 eval 尾声的 leave——它用的是被覆盖成 0x4242… 的 rbp。）")
+    if ev["sys_site"]:
+        code(doc, ev["sys_site"])
+        code(doc, required_excerpt(ev, "sys_after", "05_system_epilogue.txt"))
+        code(doc, required_excerpt(ev, "sys_epilogue", "05_system_epilogue.txt"))
+        para(doc, "（隔离工作副本中包含 ./malware。进程树和两行 ### 横幅来自子进程；"
+                  "rdi=0x6030d0、command_buf=\"./malware\"。saved rbp 保留 main 的固定帧指针，"
+                  "system 返回后 eval 的 leave 恢复原包装函数路径，程序正常退出。）")
+    else:
+        para(doc, "此处不展示与新 saved-rbp 设计不匹配的旧 GDB 记录；重新采集 "
+                  "05_system_epilogue.txt 后，将按 main fixed frame pointer / wrapper return "
+                  "小节自动显示。当前退出状态见下方结构化运行日志。")
     heading(doc, "6.4 端到端：起爆成功", 2)
     picture(doc, os.path.join(FIGS, "fig_proc_tree.png"), 6.4, "图 2  终端截图：malware 沿父链找到 dark-calc（进程树与成功横幅）")
-    sim = ev["ci_sim"]
-    block = sim[sim.index("== payload.py"):]
-    block = block[:block.index("== payload_dark.py")].rstrip()
-    code(doc, block)
-    think(doc, "system 返回后，eval 的尾声 leave 用的是我伪造的 rbp（0x4242…），当场 SIGBUS。"
-               "没关系：malware 是独立子进程，横幅早就写进了 stdout；CI 检查的是输出不是"
-               "退出状态。当然，如果想让进程体面退场，把 saved rbp 换成合法帧即可——"
-               "payload_dark 和 payload_rop 做到了 exit(0)，这里我选择让它在辉煌中死去。")
-    heading(doc, "6.5 顺手摸出的第二扇门：算术扩展里的命令替换", 2)
-    think(doc, "调试间隙我顺手在 dash 和 bash 里试了一下 eval 的包装格式：echo $(( $(cmd) ))。"
-               "两个 shell 都在算术扩展内部先做命令替换——12 字节的 $(./malware) 就够在 "
-               "15 字符闸门之内触发 malware（算术解析失败只会把报错打到 stderr，横幅照样出）。"
-               "也就是说这台机器的攻击面比作业要求的大：即使不碰缓冲区，命令注入也能得手。"
-               "本任务按作业要求用返回地址覆盖实现；但这扇门值得写进防御章节——"
-               "system() + 用户输入，从来都是高危组合。")
+    code(doc, ci_blocks["payload.py"])
+    think(doc, "机制解释：saved rbp 保留 fixed_stack_top-0x10 的 main 帧指针，"
+               "而不是写入无效填充。system 返回后，eval 的 leave 恢复该帧并经过"
+               "fixed_stack_top-8 处原有的 __wrap_main 返回地址退出；实际退出状态见下方记录。"
+               "payload_canary 的限制另在第十节说明。")
+    heading(doc, "6.5 算术扩展里的命令替换（旁路观察）", 2)
+    para(doc, "事后复现使用 12 字符的 $(./malware)，长度在 15 字符限制内。"
+              "dash 在算术扩展中先执行命令替换；malware 的进程树和成功横幅进入 **stderr**，"
+              "算术解析错误也写入 stderr。stdout 只有提示、Executing 和内置答案，"
+              "所以该旁路不能通过当前只搜索 stdout 的 CI。本任务仍按要求使用栈溢出。")
+    if ev.get("command_substitution"):
+        code(doc, ev["command_substitution"])
+        para(doc, "证据：analysis/logs/command_substitution.txt（由 tools/capture_command_substitution.py "
+                  "在隔离靶机副本上采集，与常规 GDB 观察分开标注）。")
+    think(doc, "设计结论：该旁路说明 system() 拼接用户输入会引入命令替换攻击面；"
+               "但它不是满足 stdout 判分条件的替代 payload，也不改变本任务的栈溢出实现。")
     page_break(doc)
 
     # ---------- 7 任务四 ----------
     heading(doc, "七、任务四：main 的机器码与内存布局（5 分）", 1)
     para(doc, "GDB 里 disassemble /r main，带上原始字节逐条读：")
-    code(doc, ev["main_bytes"])
+    code(doc, required_excerpt(ev, "main_bytes", "01_frame_and_main.txt"))
     table(doc,
           ["地址", "机器码", "指令", "解读"],
           [
@@ -798,6 +912,18 @@ def build(ev):
     para(doc, "其余要点：main 没有局部变量，所以没有 sub rsp；0x401ac7→0x401adb 是 while(1)，"
               "一次 input()+eval() 之后跳回循环头继续读；main 入口 rsp%16=8，push rbp 后 "
               "rsp%16=0，call 压栈后子函数入口 rsp%16=8——符合 SysV ABI 的 16 字节栈对齐。")
+    if ev["main_memory"]:
+        heading(doc, "7.1 用 x 检查 main 的内存与三条指令区间", 2)
+        for excerpt in ev["main_memory"]:
+            code(doc, excerpt)
+        para(doc, "x86-64 采用小端字节序和变长指令，三条指令在内存中按地址递增连续排列：")
+        table(doc, ["指令内存区间（左闭右开）", "字节", "指令", "rip 变化"],
+              [["[0x401ac3, 0x401ac4)", "55", "push rbp", "0x401ac3 → 0x401ac4"],
+               ["[0x401ac4, 0x401ac7)", "48 89 e5", "mov rbp,rsp", "0x401ac4 → 0x401ac7"],
+               ["[0x401ac7, 0x401acc)", "b8 00 00 00 00", "mov eax,0", "0x401ac7 → 0x401acc"]],
+              widths=[4.6, 4.4, 3.6, 4.4], mono_cols=(0, 1, 2, 3))
+        para(doc, "补充复现日志中的 x/9bx main 与逐条 stepi 对上表提供了直接观察；"
+                  "区间长度分别为 1、3、5 字节。")
     page_break(doc)
 
     # ---------- 8 任务五 ----------
@@ -806,10 +932,10 @@ def build(ev):
                "rwxp——可以执行。ELF 头会撒谎，文件名会撒谎（带 nx 的那个反而是普通栈），"
                "只有页表不撒谎。dark-calc 的「栈」是 init_fixed_stack 用 mmap 在固定地址造的"
                "RWX 映射，__wrap_main 把 rsp 切过去才开始跑 main。后果有二：地址恒定（ASLR 对"
-               "栈失效），页可执行（NX 对栈失效）。任务五的全部难度就浓缩成一句话——"
+               "栈失效），页可执行（该固定映射不受普通线程栈 NX 限制）。任务五的全部难度就浓缩成一句话——"
                "在 47 字节的输入预算里，塞下一段能调 grade_eval(4) 的机器码。")
     heading(doc, "8.1 固定栈的实锤", 2)
-    code(doc, ev["fixed_maps"])
+    code(doc, required_excerpt(ev, "fixed_maps", "02_fixed_stack.txt"))
     picture(doc, os.path.join(FIGS, "fig_fixed_stack.png"), 6.4, "图 3  终端截图：dark-calc 的固定栈映射（8 MiB rwxp，两端各一页守卫页）")
     code(doc, ev["wrap_entry"])
     heading(doc, "8.2 shellcode：21 字节，把预算花在刀刃上", 2)
@@ -833,21 +959,19 @@ def build(ev):
     code(doc, ev["shellcode_result"])
     heading(doc, "8.4 对照组：同一串字节，在 dark-calc-nx 上第一步就死", 2)
     para(doc, "把完全相同的 shellcode 喂给 dark-calc-nx，再把 PC 强制指到栈上：")
-    code(doc, ev["nx_frame"].split("info proc mappings")[0].rstrip())
-    code(doc, ev["nx_maps"])
-    code(doc, ev["nx_fault"])
+    code(doc, required_excerpt(ev, "nx_frame", "03_nx.txt"))
+    code(doc, required_excerpt(ev, "nx_maps", "03_nx.txt"))
+    code(doc, required_excerpt(ev, "nx_fault", "03_nx.txt"))
     para(doc, "同一批字节在 dark-calc 上执行、在 dark-calc-nx 上取指即 SIGSEGV——"
               "一条指令都没跑完。这就是 NX 的实锤：不是「文件名里带 nx」，是页表里没有 X。")
     page_break(doc)
 
     # ---------- 9 任务六 ----------
     heading(doc, "九、任务六：NX 之下的 ROP 攻击（10 测试 + 10 报告）", 1)
-    think(doc, "shellcode 被 NX 枪毙了，栈地址又随机（GDB 里每次都不一样），跳栈无门。"
-               "但主映像非 PIE：.text 里的每一行机器码都钉死在链接地址上。既然不能带自己的"
-               "代码进场，就复用靶机里现成的代码——ROP 的本质就是「用别人的指令，干自己的事」。"
-               "于是我去找 pop rdi; ret：objdump 里没有，换字节级扫描再找，还是没有。正打算"
-               "认命，才想起来 CPU 并不读反汇编器的行号，它只顺着字节流一个字节一个字节地"
-               "执行——那么，从一条指令的正中间切进去，是不是就能读到一条「不存在」的指令？")
+    think(doc, "设计推导：普通线程栈受 NX 与 ASLR 约束，而非 PIE 主映像的代码地址固定，"
+               "因此改用 ROP。x86 变长指令允许从已有指令的中间进入；按字节扫描 csu 尾部，"
+               "可由 41 5f c3 的第二个字节得到 pop rdi; ret。下面用静态反汇编核对该构造，"
+               "不虚构未留痕的探索顺序。")
     heading(doc, "9.1 捡零件：41 5f c3 往前走一个字节", 2)
     code(doc, disasm_range("dark-calc-nx", 0x401A2A, 0x401A35))
     para(doc, "__libc_csu_init 的尾声是 pop rbx; pop rbp; pop r12; pop r13; pop r14; pop r15; "
@@ -856,6 +980,10 @@ def build(ev):
               "pop rdi，0xc3 译码为 ret——一个完美的未对齐 gadget 到手。")
     code(doc, "0x401a32: 41 5f c3        pop r15; ret\n"
               "0x401a33:    5f c3        pop rdi; ret   ← 从这里进入")
+    para(doc, "范围对照：官网提示所需 gadget 位于 0x4019d0–0x401ae3。本链真正用于拼装参数的 "
+              "pop rdi; ret（0x401a33）与裸 ret（0x401a34）都在该范围内；0x401978 grade_eval "
+              "与 0x4018aa exit(0) 调用点是链的落点与清理入口，属于函数/现成调用点，"
+              "不是用于弹参数的 gadget。")
     heading(doc, "9.2 链与栈对齐", 2)
     table(doc,
           ["偏移", "值（小端）", "作用"],
@@ -872,27 +1000,25 @@ def build(ev):
               "pop rdi 弹掉参数 4 后 rsp%16=8；pop rdi 尾部的 ret 弹到垫片 ret，此时 rsp%16=0；"
               "垫片 ret 再弹到 grade_eval，此时 rsp%16=8——与正常 call 的入口约定完全一致，所以 "
               "它内部 printf 的 movaps 不会因未对齐崩掉（对任意 glibc 稳健）。若省掉这个垫片，"
-              "grade_eval 会以 rsp%16=0 进入，严格 glibc 上 printf 可能直接崩溃。grade_eval 是"
-              "普通函数，自带 canary 建立与校验，链里没有任何一步碰它的帧。整条链只用固定代码"
-              "地址，对栈随机化、libc 地址完全免疫。")
-    heading(doc, "9.3 实测", 2)
-    code(doc, "Enter an expression (length up to 15):\n\n Hope A will be your grade! \n"
-              "target exit status: 0   PASS（期望字符串命中）")
+              "grade_eval 会以 rsp%16=0 进入，严格 glibc 上 printf 可能直接崩溃。"
+              "dark-calc-nx 的 grade_eval 没有 canary；链中不依赖伪造一个 canary。"
+              "整条链只用固定代码地址，不依赖随机栈地址或 libc 地址。")
+    heading(doc, "9.3 运行记录（从 ci_simulation.txt 提取）", 2)
+    code(doc, ci_blocks["payload_rop.py"])
     page_break(doc)
 
     # ---------- 10 任务七 ----------
     heading(doc, "十、任务七：绕过 Stack Canary（10 测试 + 10 报告）", 1)
-    think(doc, "直线思路：返回地址在偏移 296，而 canary 蹲在 280——想够到它必然先踩中金丝雀；"
-               "canary 每进程随机，静态 payload 根本写不回原值。先做个对照实验证明它确实在"
-               "看着：288 字节覆盖 canary →「*** stack smashing detected ***: terminated」→ "
-               "SIGABRT。铁壁，正面撞不动。")
+    think(doc, "设计推导：返回地址在偏移 296，canary 在 280；直接覆盖返回地址会先改变 canary。"
+               "canary 每进程随机，不能靠静态 payload 恢复原值。04b 对照日志记录了 288 字节输入"
+               "导致的 stack smashing detected 与 SIGABRT。")
     heading(doc, "10.1 对照实验：金丝雀真的会叫", 2)
     code(doc, ev["smash_before"])
     code(doc, ev["smash_after"])
-    think(doc, "说个插曲：我的第一个对照 payload 更粗暴——320 个 'A' 直接灌。结果它把偏移 256 "
-               "的 len 也写成了 0x41414141，memcpy 目的地变成非法地址，拷贝第二个 qword 就 "
-               "SIGSEGV，连金丝雀的面都没见着。这次翻车反而是第七节最大的线索：gets 溢出"
-               "之外，len 控制的定长拷贝是第二个、更精准的写原语。")
+    think(doc, "设计推导：全 'A' 的长输入会同时覆盖 len（偏移 256）与 canary（偏移 280），"
+               "并使 memcpy 的目的地址失去合法性；它不适合作为只改变 canary 的对照。"
+               "因此采用 04b 中有记录的 288 字节输入观察 canary 校验，"
+               "再利用 len 控制 memcpy 的目的地址。")
     heading(doc, "10.2 顿悟：金丝雀只盯着自己的窝", 2)
     para(doc, "canary 校验检查的是「rbp-8 的值变了没有」，不是「控制流变了没有」。那么问题"
               "变成：有没有一条路，改掉返回地址、却不经过 rbp-8？有——让那 128 字节的 memcpy "
@@ -922,9 +1048,10 @@ def build(ev):
     code(doc, ev["canary_after"])
     code(doc, ev["canary_hit"].split("#1")[0].rstrip())
     code(doc, ev["canary_end"])
-    para(doc, "拷贝前后 canary 一字不差；len=160、目的地=rbp；返回地址槽变成 0x4018a3。"
-              "grade_eval 以 edi=4 进入，打印目标字符串。之后返回地址落进 'L' 填充 → SIGSEGV，"
-              "但 printf 后面紧跟 fflush(stdout)，横幅已经落盘，CI 的 grep 不受影响。")
+    para(doc, "拷贝前后 input 的 canary 保持一致；len=160、目的地=rbp；返回地址槽变成 0x4018a3。"
+              "grade_eval 以 edi=4 进入，打印并 flush 目标字符串。之后控制流返回 'L' 填充区域；"
+              f"当前结构化运行记录的 target_rc={ci_records['payload_canary.py']['target_rc']}，"
+              "stdout 是否命中以第十一节为准。若后续改变清理链，应以重新采集的 GDB/CI 记录更新此解释。")
     heading(doc, "10.5 反推防守：重排局部变量，让这枪哑火", 2)
     para(doc, "为什么这枪能打中？根子在于结构体把标量 len 放到了缓冲区 expression 的"
               "高地址侧（expression → logMsg → len），而 gets 的溢出方向恰恰是向高地址——"
@@ -943,34 +1070,43 @@ def build(ev):
     page_break(doc)
 
     # ---------- 11 验收 ----------
-    heading(doc, "十一、验收：虚拟机复现通过（与 CI 判分动作一致）", 1)
+    heading(doc, "十一、验收：虚拟机记录与已完成的公开 CI", 1)
     rows = [[r["payload"], r["target"], str(r["bytes"]),
              str(r["target_rc"]) + (" (SIGBUS)" if r["target_rc"] == -7 else
                                     " (SIGSEGV)" if r["target_rc"] == -11 else ""),
-             "PASS" if r["pass"] else "FAIL"] for r in ev["ci"]]
-    table(doc, ["payload", "目标", "字节数（含换行）", "目标退出状态", "结果"],
+             str(bool(r["pass"]))] for r in ev["ci"]]
+    table(doc, ["payload", "目标", "字节数（含换行）", "目标退出状态", "stdout 预期串命中"],
           rows, widths=[4.2, 3.2, 2.0, 3.6, 4.0], mono_cols=(0, 1))
-    para(doc, "上表是 VirtualBox Ubuntu 24.04（glibc 2.39）用 tools/run_evidence.py 逐字复现 CI 判分动作的实测记录。"
-              "该脚本复现仓库 Actions 的「Test every exploit payload」job 对四个 payload 的判分动作："
-              "「生成 → 重定向 stdin → grep 期望串」；attack/ 四个二进制与助教清单的 sha256 对照"
-              "由 tools/hash_check.sh 单独完成（输出见 2.2 节）。真实 CI 结果需在 push 到 GitHub 后，"
-              "由仓库自带的 Actions（ubuntu-24.04，glibc 2.39）自动运行验证，本报告不预先断言其状态。")
-    para(doc, "payload.py 的完整输出（进程树 + 成功横幅）见 6.4 节，其余三段（analysis/logs/"
-              "ci_simulation.txt）：")
-    code(doc, ev["ci_sim"][ev["ci_sim"].index("== payload_dark.py"):].rstrip())
-    para(doc, "虚拟机复现（Ubuntu 24.04，与 CI 相同的重定向方式）：")
-    code(doc, "# 1. 准备可执行工作副本（~/lab3）\n"
-              "rm -rf ~/lab3 && mkdir -p ~/lab3 && cp attack/* ~/lab3/ && chmod +x ~/lab3/*\n\n"
-              "# 2. 证据采集（GDB / 反汇编 / 长度矩阵 / CI 等价测试）\n"
-              "python3 tools/make_inputs.py\n"
-              "bash   tools/capture_gdb.sh\n"
-              "bash   tools/capture_disassembly.sh\n"
-              "python3 tools/run_evidence.py\n\n"
-              "# 3. 单个 payload 手动验证（与 CI 相同的重定向方式）\n"
-              "python3 payload.py > /tmp/p.bin && (cd ~/lab3 && ./dark-calc < /tmp/p.bin)")
-    para(doc, "CI 的动作序列：python3 <payload> > payload.bin → cd attack → ./<target> < "
-              "payload.bin → grep -F 期望字符串。虚拟机复现与 CI 的动作完全一致；"
-              "真实 CI 结果以 push 后仓库 Actions（ubuntu-24.04，glibc 2.39）的实际运行状态为准。")
+    para(doc, f"上表由 analysis/logs/ci_simulation.json 生成，本次本地记录为 {ci_pass_count}/{ci_total} "
+              "命中预期 stdout。tools/run_evidence.py 记录生成、stdin 重定向与 stdout 匹配等核心"
+              "判分步骤，并保留退出状态和 stderr；它不是 GitHub Actions 的逐步骤等同实现，"
+              "各目标的实际退出状态以表格和所引日志为准。")
+    para(doc, "公开 CI 的历史结果：GitHub Actions run 45372795393（2026-11-24，提交 "
+              "d54873fdab7ecfe25d5650f3534767b792d45d95）已完成且结论为 success；"
+              "Test every exploit payload 和 Check report PDF 两个 job 均成功。"
+              "这只说明该次提交的公开检查已通过；后续修改仍须以新提交的实际运行结果为准，"
+              "也不据此承诺人工评分。")
+    para(doc, "payload.py 的完整输出见 6.4 节，其余三段按 payload 小节从 "
+              "analysis/logs/ci_simulation.txt 提取：")
+    code(doc, ci_blocks["other"])
+    para(doc, "隔离工作副本与核心复现命令（工具验证仓库 attack/ 哈希，不删除 ~/lab3）：")
+    code(doc, """# 1. 准备独立工作副本和 fixtures
+export ATTACKLAB_WORKDIR="$(bash tools/prepare_lab.sh)"
+export ATTACKLAB_FIXTURE_DIR="$ATTACKLAB_WORKDIR/fixtures"
+bash tools/screens/setup.sh
+
+# 2. 证据采集（GDB / 反汇编 / 长度矩阵 / 核心判分复现）
+bash   tools/capture_gdb.sh
+bash   tools/capture_disassembly.sh
+python3 tools/run_evidence.py
+python3 tools/capture_command_substitution.py
+
+# 3. 单个 payload 手动验证（隔离副本）
+python3 payload.py > "$ATTACKLAB_FIXTURE_DIR/p5.bin"
+(cd "$ATTACKLAB_WORKDIR" && ./dark-calc < "$ATTACKLAB_FIXTURE_DIR/p5.bin")""")
+    para(doc, "当前官方 payload job 验证 attack/ 哈希、生成 payload、在 attack/ 中重定向"
+              "目标 stdin、分离保存 stdout/stderr，再搜索 stdout 中的预期串，并提供 15 s "
+              "超时等运行约束。本地日志用于复现核心行为，不等同于复刻整个 Actions 环境。")
     page_break(doc)
 
     # ---------- 12 防守 ----------
@@ -1000,19 +1136,24 @@ def build(ev):
     bullet(doc, "只有页表不撒谎：GNU_STACK、文件名、编译选项都是「声明」；0x7210 那行 rwxp 才是真相。静态分析负责怀疑，运行期观察负责定罪。", "② ")
     bullet(doc, "指令边界是人的约定：41 5f c3 往前挪一个字节，pop r15 就变 pop rdi。ROP 的本质是「别人的字节流，我的控制流」。", "③ ")
     bullet(doc, "金丝雀只守着窝：它检测「值被改」，不检测「控制流被改」。攻击者要做的不是骗过它，而是找一条不经过它的路——dark-log 的 len 定长拷贝就是那条路。防御必须覆盖每一个越界写原语。", "④ ")
-    bullet(doc, "预算思维：48 字节牢笼、15 字符闸门、8 字节栈顶——这些约束不是障碍，是题面。第一版 49 字节链的翻车教会我：先量清楚边界，再设计 payload。", "⑤ ")
+    bullet(doc, "预算思维：固定栈到返回地址为 24 字节、到守卫页为 48 字节；eval 只截取前 15 个表达式字符。先测量边界再设计 payload，可避免 gets 在控制流转移前触发守卫页错误。", "⑤ ")
     heading(doc, "局限与说明", 2)
     bullet(doc, "实验在 VirtualBox Ubuntu 24.04（glibc 2.39）完成，与 CI 的 ubuntu-24.04 环境一致。payload 只依赖非 PIE 固定代码地址与 dark-calc 的固定映射，不依赖 glibc 内部布局；gets/system 等符号在本环境均存在；")
     bullet(doc, "dark-calc 的 0x721000000000 固定映射假设该区间未被占用（MAP_FIXED_NOREPLACE 失败时程序会报错退出），当前内核与 CI 环境均成立；")
-    bullet(doc, "payload.py 的 system 返回后与 payload_canary.py 的 grade_eval 返回后，进程会因伪造的帧数据崩溃（SIGBUS/SIGSEGV）：目标字符串在此之前已 flush，CI 只检查输出；payload_dark/payload_rop 已做到 exit(0)；")
-    bullet(doc, "文中每条 GDB/运行记录都能按第十一节命令复现，原始日志与脚本随仓库提交。")
+    bullet(doc, "各 payload 的实际退出状态来自 ev[\"ci\"]："
+               + "；".join(f"{name} target_rc={ci_records[name]['target_rc']}"
+                          for name in ("payload.py", "payload_dark.py", "payload_rop.py", "payload_canary.py"))
+               + "。stdout 命中不等于正常退出，当前官方检查只搜索 stdout；")
+    bullet(doc, "文中标注的 GDB/运行记录可按第十一节命令复现；报告构建只读取记录，"
+                "不把静态设计推导或生成器 hexdump 当作目标运行实测。")
     heading(doc, "时间线", 2)
     table(doc,
           ["时间", "事件"],
           [
               ["2026-11-23", "首次采集证据（内核 7.0.0-31 / glibc 2.39-0ubuntu8.9）"],
-              ["2026-11-24", "系统升级到 7.0.0-43 / 2.39-0ubuntu8.12 后整体重跑：四个 payload 4/4 PASS，五张终端截图重拍"],
-              ["push 之后", "由仓库 Actions 运行「Check report PDF」与「Test every exploit payload」，结果以实际运行状态为准"],
+              ["2026-11-24", "系统升级到 7.0.0-43 / 2.39-0ubuntu8.12 后重跑本地证据采集并拍摄终端截图"],
+              ["2026-11-24", "公开 run 45372795393（基线提交 d54873f）两个 job 均成功；后续变更以新 run 为准"],
+              ["2026-11-25", "payload.py 修复（干净 exit(0)）后重拍五张终端截图并重建 DOCX/PDF"],
           ],
           widths=[3.2, 13.8])
     page_break(doc)
@@ -1043,8 +1184,9 @@ def build(ev):
         ("B.6 payload.py 的 system 调用点（05_system_epilogue.txt）",
          ev["sys_site"] + "\n\n" + ev["sys_after"] + "\n\n" + ev["sys_epilogue"]),
     ]:
-        heading(doc, title, 2)
-        code(doc, text)
+        if text.strip():
+            heading(doc, title, 2)
+            code(doc, text)
     page_break(doc)
 
     # ---------- 附录 C ----------
@@ -1072,13 +1214,13 @@ def build(ev):
               "objdump -d --start-address=0x401a32 --stop-address=0x401a35 attack/dark-calc-nx\n\n"
               "# gadget 字节扫描（tools/gadgets.py）\n"
               "python3 tools/gadgets.py attack/dark-calc 5fc3 c3   # 找 pop rdi; ret / ret\n\n"
-              "# GDB 批量会话\n"
-              "gdb -q -batch -x tools/gdb/01_frame_and_main.gdb\n"
+              "# GDB 批量会话（自动准备隔离副本与 fixtures）\n"
+              "bash tools/capture_gdb.sh\n"
               "# 注意：每个脚本开头都有 set disable-randomization off，观察真实 ASLR\n\n"
               "# 完整性\n"
               "bash tools/hash_check.sh          # 对照 CI 的 sha256 清单\n\n"
-              "# 端到端（与 CI 相同）\n"
-              "python3 payload_canary.py > /tmp/p.bin && (cd ~/lab3 && ./dark-log < /tmp/p.bin)")
+              "# 端到端（与 CI 核心判分动作等价）\n"
+              "bash tools/verify_ci.sh")
 
     doc.save(OUT)
     print("saved", OUT)

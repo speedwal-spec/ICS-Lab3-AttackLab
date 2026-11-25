@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """attacklab.py -- dependency-free ELF64 helpers for the AttackLab payload generators.
 
-Each exploit needs a handful of exact addresses from the lab binaries: grade_eval,
-the __libc_csu_init "pop rdi; ret" gadget, the two call sites that set up
-system()/exit(), and (for dark-calc) the fixed-stack buffer.  Instead of
-hardcoding those addresses, resolve them straight from the target binary so the
-payloads stay correct even if attack/* is rebuilt with different addresses.
+Each exploit needs a handful of exact addresses from the supplied lab binaries:
+grade_eval, the __libc_csu_init "pop rdi; ret" gadget, the two call sites that set
+up system()/exit(), and (for dark-calc) the fixed-stack buffer. These code
+addresses are resolved from each target instead of being duplicated as literals.
+Stack-frame and structure offsets still deliberately match the supplied binaries;
+this is not a promise that arbitrary rebuilt binaries are compatible.
 
-The binaries are non-PIE ET_EXEC linked at 0x400000, so every symbol value and
-instruction address is a fixed virtual address.  Only the Python standard library
-is used, so `python3 payload.py` runs anywhere without binutils.
+The supplied binaries are non-PIE ET_EXEC files linked at 0x400000, so their
+symbol values and instruction addresses are fixed virtual addresses. Only the
+Python standard library is used, so `python3 payload.py` runs without binutils.
+The target programs themselves require the supplied Linux x86-64 environment.
 """
 from __future__ import annotations
 
@@ -18,8 +20,16 @@ import struct
 
 # --- ELF64 constants ---------------------------------------------------------
 PT_LOAD = 1
+ET_EXEC = 2
+EM_X86_64 = 62
+ELF_HEADER_SIZE = 64
+PROGRAM_HEADER_SIZE = 56
+SECTION_HEADER_SIZE = 64
+SYMBOL_SIZE = 24
+RELA_SIZE = 24
 SHT_SYMTAB = 2
 SHT_DYNSYM = 11
+SHT_NOBITS = 8
 
 
 def _u16(b, o):
@@ -40,27 +50,46 @@ class Elf:
     def __init__(self, path):
         with open(path, "rb") as f:
             self.data = f.read()
+        if len(self.data) < ELF_HEADER_SIZE:
+            raise ValueError(f"{path}: truncated ELF header")
         if self.data[:4] != b"\x7fELF" or self.data[4] != 2 or self.data[5] != 1:
             raise ValueError(f"{path}: not a little-endian ELF64 file")
+        if _u16(self.data, 16) != ET_EXEC or _u16(self.data, 18) != EM_X86_64:
+            raise ValueError(f"{path}: these payloads require a non-PIE x86-64 ELF")
+        if _u16(self.data, 52) != ELF_HEADER_SIZE:
+            raise ValueError(f"{path}: unexpected ELF header size")
+        self.path = path
         self._load_segments()
         self._load_sections()
         self._load_symbols()
         self._locate_text()
 
     # -- program headers (PT_LOAD), for virtual-address -> file-offset mapping --
+    @staticmethod
+    def _slice(data, off, size, what):
+        if off < 0 or size < 0 or off > len(data) or size > len(data) - off:
+            raise ValueError(f"truncated ELF: {what} lies outside the file")
+        return data[off:off + size]
+
     def _load_segments(self):
         e_phoff = _u64(self.data, 0x20)
         e_phentsize = _u16(self.data, 0x36)
         e_phnum = _u16(self.data, 0x38)
+        if e_phentsize < PROGRAM_HEADER_SIZE:
+            raise ValueError("unsupported ELF program-header entry size")
+        self._slice(self.data, e_phoff, e_phentsize * e_phnum, "program headers")
         self.segments = []
         for i in range(e_phnum):
             o = e_phoff + i * e_phentsize
             if _u32(self.data, o) != PT_LOAD:
                 continue
+            off, vaddr, filesz = (_u64(self.data, o + 8), _u64(self.data, o + 16),
+                                  _u64(self.data, o + 32))
+            self._slice(self.data, off, filesz, "loadable segment")
             self.segments.append({
-                "off": _u64(self.data, o + 8),
-                "vaddr": _u64(self.data, o + 16),
-                "filesz": _u64(self.data, o + 32),
+                "off": off,
+                "vaddr": vaddr,
+                "filesz": filesz,
             })
 
     # -- section headers -------------------------------------------------------
@@ -69,6 +98,11 @@ class Elf:
         e_shentsize = _u16(self.data, 0x3A)
         e_shnum = _u16(self.data, 0x3C)
         e_shstrndx = _u16(self.data, 0x3E)
+        if e_shnum == 0 or e_shstrndx == 0 or e_shstrndx >= e_shnum:
+            raise ValueError("stripped ELF or unsupported extended section numbering")
+        if e_shentsize < SECTION_HEADER_SIZE:
+            raise ValueError("unsupported ELF section-header entry size")
+        self._slice(self.data, e_shoff, e_shentsize * e_shnum, "section headers")
         self.sections = []
         for i in range(e_shnum):
             ho = e_shoff + i * e_shentsize
@@ -81,6 +115,9 @@ class Elf:
                 "size": _u64(self.data, ho + 32),
                 "link": _u32(self.data, ho + 40),
             })
+            s = self.sections[-1]
+            if s["type"] != SHT_NOBITS:
+                self._slice(self.data, s["off"], s["size"], f"section {len(self.sections) - 1}")
         shstr = self.sections[e_shstrndx]
         shstr_base = shstr["off"]
         for s in self.sections:
@@ -93,9 +130,11 @@ class Elf:
         for sec in self.sections:
             if sec["type"] not in (SHT_SYMTAB, SHT_DYNSYM):
                 continue
+            if sec["link"] >= len(self.sections) or sec["size"] % SYMBOL_SIZE:
+                raise ValueError("invalid symbol-table link or size")
             strtab = self.sections[sec["link"]]
             stroff = strtab["off"]
-            for so in range(sec["off"], sec["off"] + sec["size"], 24):
+            for so in range(sec["off"], sec["off"] + sec["size"], SYMBOL_SIZE):
                 name_off = _u32(self.data, so)
                 shndx = _u16(self.data, so + 6)
                 value = _u64(self.data, so + 8)
@@ -109,7 +148,7 @@ class Elf:
         for s in self.sections:
             if s["name"] == ".text":
                 self.text = s
-                self.text_bytes = self.data[s["off"]:s["off"] + s["size"]]
+                self.text_bytes = self._slice(self.data, s["off"], s["size"], ".text")
                 return
         raise ValueError("no .text section found")
 
@@ -132,14 +171,17 @@ class Elf:
         rela = next(s for s in self.sections if s["name"] == ".rela.plt")
         dynsym = next(s for s in self.sections if s["type"] == SHT_DYNSYM)
         dynstr = self.sections[dynsym["link"]]
-        for j in range(0, rela["size"], 24):  # Elf64_Rela is 24 bytes
+        if rela["size"] % RELA_SIZE:
+            raise ValueError("invalid relocation size")
+        for j in range(0, rela["size"], RELA_SIZE):  # Elf64_Rela is 24 bytes
             r_info = _u64(self.data, rela["off"] + j + 8)
             sym_index = r_info >> 32
-            sym_off = dynsym["off"] + sym_index * 24
+            sym_off = dynsym["off"] + sym_index * SYMBOL_SIZE
+            self._slice(self.data, sym_off, SYMBOL_SIZE, "dynamic symbol")
             name_off = _u32(self.data, sym_off)
             end = self.data.find(b"\x00", dynstr["off"] + name_off)
             if self.data[dynstr["off"] + name_off:end].decode() == name:
-                return plt["addr"] + 16 * (j // 24 + 1)
+                return plt["addr"] + 16 * (j // RELA_SIZE + 1)
         raise KeyError(f"PLT stub for {name!r} not found")
 
     def find_bytes(self, pattern, unique=True):
@@ -152,7 +194,7 @@ class Elf:
 
     def read_vaddr(self, vaddr, n):
         off = self._vaddr_to_off(vaddr)
-        return self.data[off:off + n]
+        return self._slice(self.data, off, n, "virtual-address read")
 
     def _vaddr_to_off(self, vaddr):
         for seg in self.segments:
@@ -203,8 +245,8 @@ def system_command_buf_call_site(elf):
     return call_site_mov_edi_call(elf, elf.symbol("command_buf"), "system")
 
 
-def fixed_stack_buffer(elf):
-    """dark-calc's expression buffer address, derived from init_fixed_stack().
+def fixed_stack_top(elf):
+    """dark-calc's fixed stack top, derived from init_fixed_stack().
 
     init_fixed_stack() does `mmap(BASE, 0x802000, RWX, MAP_FIXED_NOREPLACE)`,
     guards both ends, then stores `fixed_stack_top = BASE + 0x801000` and
@@ -222,4 +264,9 @@ def fixed_stack_buffer(elf):
     if len(bases) != 1 or len(addends) != 1:
         raise ValueError(f"unexpected init_fixed_stack patterns: bases={bases} addends={addends}")
     top = bases[0] + addends[0]
-    return top - 0x30  # frame depth from fixed_stack_top down to input()'s buffer
+    return top
+
+
+def fixed_stack_buffer(elf):
+    """Address of input()'s buffer in dark-calc's supplied fixed stack layout."""
+    return fixed_stack_top(elf) - 0x30

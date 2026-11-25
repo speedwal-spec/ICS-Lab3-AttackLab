@@ -2,9 +2,14 @@
 set pagination off
 set confirm off
 set disable-randomization off
-file ~/lab3/dark-calc
+python
+import os
+gdb.execute("file " + os.path.join(os.environ["ATTACKLAB_WORKDIR"], "dark-calc"))
+end
 break *input
-run < /tmp/lab3-inputs/eight.bin
+python
+gdb.execute("run < " + os.path.join(os.environ["ATTACKLAB_FIXTURE_DIR"], "eight.bin"))
+end
 printf "\n### stopped at input() entry, before the prologue runs\n"
 info registers rip rbp rsp rdi rsi
 printf "\n### instructions at entry\n"

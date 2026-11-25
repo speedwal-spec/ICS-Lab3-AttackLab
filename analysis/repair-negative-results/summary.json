@@ -1,0 +1,68 @@
+[
+  {
+    "name": "prepare_rejects_modified_target",
+    "rc": 1,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "name": "verify_rejects_modified_target",
+    "rc": 1,
+    "stdout": "attack/dark-calc: FAILED\nattack/dark-calc-nx: OK\nattack/dark-log: OK\nattack/malware: OK\n",
+    "stderr": "sha256sum: WARNING: 1 computed checksum did NOT match\n"
+  },
+  {
+    "name": "hash_rejects_modified_target",
+    "rc": 1,
+    "stdout": "# sha256sum check of attack/ against .github/workflows/lab3-checks.yml\nattack/dark-calc: FAILED\nattack/dark-calc-nx: OK\nattack/dark-log: OK\nattack/malware: OK\nsha256sum: WARNING: 1 computed checksum did NOT match\nexit=1\n\n# payload scripts (LF) and report files\n-rw-rw-r-- 1 labuser labuser 1708 Nov 20 03:12 payload_canary.py\n-rw-rw-r-- 1 labuser labuser 3172 Nov 20 03:27 payload_dark.py\n-rw-rw-r-- 1 labuser labuser 2223 Nov 25 00:55 payload.py\n-rw-rw-r-- 1 labuser labuser 1463 Nov 20 03:12 payload_rop.py\nRESULT: FAIL\n",
+    "stderr": ""
+  },
+  {
+    "name": "evidence_rejects_modified_target",
+    "rc": 1,
+    "stdout": "",
+    "stderr": "run_evidence: official SHA256 mismatch for attack/dark-calc: be40eeb5f475be9fd2e1a12ac4b435a30890533835c088fa39d119a4632fd04f\nRESULT: FAIL\n"
+  },
+  {
+    "name": "evidence_rejects_failed_generator",
+    "rc": 1,
+    "stdout": "CI: payload.py=True, payload_dark.py=False, payload_rop.py=True, payload_canary.py=True\nlength rows: 15\ngcc rc=0\nkernel.randomize_va_space = 2\nrun 1: rc=0 &i = 0x7ffd0bbc2f84\nrun 2: rc=0 &i = 0x7ffe151b4754\nrun 3: rc=0 &i = 0x7ffcec733d34\nrun 4: rc=0 &i = 0x7ffc5be8a454\nrun 5: rc=0 &i = 0x7ffcc26ec214\nrun 6: rc=0 &i = 0x7fff8b10f2b4\nRESULT: FAIL\n",
+    "stderr": ""
+  },
+  {
+    "name": "verify_rejects_failed_generator",
+    "rc": 1,
+    "stdout": "attack/dark-calc: OK\nattack/dark-calc-nx: OK\nattack/dark-log: OK\nattack/malware: OK\n== payload.py -> attack/dark-calc\n   payload bytes: 33   target exit: 0\n   PASS\n\n\n### The bomb was triggered by the dark-calc process. ###\n### You have successfully detonated the bomb! Congratulations! ###\n\nEnter an expression (length up to 15):\n   --- stderr ---\nTERM is not set\n== payload_dark.py -> attack/dark-calc\n   FAIL: generator failed or timed out (exit 42)\n== payload_rop.py -> attack/dark-calc-nx\n   payload bytes: 65   target exit: 0\n   PASS\nEnter an expression (length up to 15):\n\n^[[31m Hope A will be your grade! \n== payload_canary.py -> attack/dark-log\n   payload bytes: 261   target exit: 139\n   PASS\nEnter a log message:\n\n^[[31m Hope A will be your grade! \n   --- stderr ---\ntimeout: the monitored command dumped core\nRESULT: FAIL\n",
+    "stderr": "tools/verify_ci.sh: line 66: 11768 Segmentation fault      timeout 15s \"./$target\" < \"$workdir/payload.bin\" > \"$workdir/stdout.txt\" 2> \"$workdir/stderr.txt\"\n"
+  },
+  {
+    "name": "make_inputs_rejects_relative_directory",
+    "rc": 1,
+    "stdout": "",
+    "stderr": "make_inputs: ATTACKLAB_FIXTURE_DIR must be a non-empty absolute path\n"
+  },
+  {
+    "name": "invalid_pdf_rejected",
+    "rc": 1,
+    "stdout": "== PDF structural ==\nsize: 10\nsignature: b'not a pd'\nPDF signature and version        -> FAIL\npositive page-tree count         -> FAIL\ndocument catalog                 -> FAIL\nstartxref                        -> FAIL\nEOF near end                     -> FAIL\nUnicode font mappings            -> FAIL\nembedded fonts                   -> FAIL\nreport images                    -> FAIL\npage-tree /Count: None\nToUnicode maps: 0\nimage xobjects: 0\nfont resources: []\nembedded font streams: 0\n\n== PDF required literal markers ==\ncriterion: exact UTF-8 marker bytes in the PDF file; not text extraction\n实验报告                         -> FAIL\nAttackLab                    -> FAIL\n0x401a6b                     -> FAIL\n0x721000800fd0               -> FAIL\nsuccessfully detonated       -> FAIL\nstack smashing               -> FAIL\nHope A will be your grade    -> FAIL\ngrade_eval                   -> FAIL\n推理手记                         -> FAIL\n48 字节                        -> FAIL\n\n== DOCX appendix source-hash freshness ==\n",
+    "stderr": "check_pdf: File is not a zip file\n"
+  },
+  {
+    "name": "failed_tool_capture_disassembly.sh",
+    "rc": 42,
+    "stdout": "",
+    "stderr": "objdump failed for attack/dark-calc (exit 42)\n"
+  },
+  {
+    "name": "failed_tool_capture_gdb.sh",
+    "rc": 42,
+    "stdout": "wrote fixtures to /tmp/attacklab-gdb.lLL1jfA1/fixtures\n== tools/gdb/00_call_return.gdb -> analysis/gdb/00_call_return.txt\n",
+    "stderr": "gdb failed for tools/gdb/00_call_return.gdb (exit 42)\n"
+  },
+  {
+    "name": "failed_tool_gadgets",
+    "rc": 1,
+    "stdout": "== 5fc3 (2 hits) in attack/dark-calc-nx\n  file=0x1a33 vaddr=0x401a33\n",
+    "stderr": "Traceback (most recent call last):\n  File \"/tmp/attacklab-repair-current/negative-regression-results/bad-tools/tools/gadgets.py\", line 99, in <module>\n    sys.exit(main())\n             ^^^^^^\n  File \"/tmp/attacklab-repair-current/negative-regression-results/bad-tools/tools/gadgets.py\", line 95, in main\n    print(\"    \" + disasm(args.binary, off, v, args.window).replace(\"\\n\", \"\\n    \"))\n                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/tmp/attacklab-repair-current/negative-regression-results/bad-tools/tools/gadgets.py\", line 63, in disasm\n    raise RuntimeError(f\"objdump failed for {path} at file offset 0x{file_off:x} \"\nRuntimeError: objdump failed for attack/dark-calc-nx at file offset 0x1a33 (rc=42):\ninjected failure\n"
+  }
+]

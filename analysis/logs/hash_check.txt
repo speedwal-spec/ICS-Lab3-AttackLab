@@ -8,5 +8,6 @@ exit=0
 # payload scripts (LF) and report files
 -rw-rw-r-- 1 labuser labuser 1708 Nov 20 03:12 payload_canary.py
 -rw-rw-r-- 1 labuser labuser 3172 Nov 20 03:27 payload_dark.py
--rw-rw-r-- 1 labuser labuser 1775 Nov 20 03:12 payload.py
+-rw-rw-r-- 1 labuser labuser 2223 Nov 25 00:55 payload.py
 -rw-rw-r-- 1 labuser labuser 1463 Nov 20 03:12 payload_rop.py
+RESULT: PASS

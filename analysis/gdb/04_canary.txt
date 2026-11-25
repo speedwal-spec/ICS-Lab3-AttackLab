@@ -5,8 +5,8 @@ Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
 Breakpoint 1, 0x00000000004016d6 in input ()
 
 ### input() entry
-rbp            0x7fff061ccca0      0x7fff061ccca0
-rsp            0x7fff061ccc88      0x7fff061ccc88
+rbp            0x7fff5ef08f50      0x7fff5ef08f50
+rsp            0x7fff5ef08f38      0x7fff5ef08f38
 
 ### step the prologue and the canary store
 0x00000000004016d7 in input ()
@@ -14,29 +14,29 @@ rsp            0x7fff061ccc88      0x7fff061ccc88
 0x00000000004016e1 in input ()
 0x00000000004016ea in input ()
 0x00000000004016ee in input ()
-after prologue: rbp=0x7fff061ccc80 rsp=0x7fff061ccb60
-stack canary at rbp-0x8 : $1 = 0x27be297d6e129300
-TLS canary at fs:0x28   : $2 = 0x27be297d6e129300
+after prologue: rbp=0x7fff5ef08f30 rsp=0x7fff5ef08e10
+stack canary at rbp-0x8 : $1 = 0x2bed1ada8fdbb300
+TLS canary at fs:0x28   : $2 = 0x2bed1ada8fdbb300
 
 ### run to the point just after the 128-byte memcpy
 Breakpoint 2 at 0x4017db
 
 Breakpoint 2, 0x00000000004017db in input ()
 len (rbp-0x20) = 160  (0xa0)
-memcpy destination = logMsg + len = 0x7fff061ccc80
-stack canary at rbp-0x8 : $3 = 0x27be297d6e129300
+memcpy destination = logMsg + len = 0x7fff5ef08f30
+stack canary at rbp-0x8 : $3 = 0x2bed1ada8fdbb300
 
 ### the overwritten frame tail: saved rbp, return address, canary
-0x7fff061ccc78:	0x27be297d6e129300	0x4b4b4b4b4b4b4b4b
-0x7fff061ccc88:	0x00000000004018a3	0x0000000000000004
-0x7fff061ccc98:	0x00000000004018a4
+0x7fff5ef08f28:	0x2bed1ada8fdbb300	0x4b4b4b4b4b4b4b4b
+0x7fff5ef08f38:	0x00000000004018a3	0x0000000000000004
+0x7fff5ef08f48:	0x00000000004018a4
 
 ### continue into grade_eval(4)
 Breakpoint 3 at 0x401677
 
 Breakpoint 3, 0x0000000000401677 in grade_eval ()
 rdi            0x4                 4
-rsp            0x7fff061ccca8      0x7fff061ccca8
+rsp            0x7fff5ef08f58      0x7fff5ef08f58
 rbp            0x4b4b4b4b4b4b4b4b  0x4b4b4b4b4b4b4b4b
 #0  0x0000000000401677 in grade_eval ()
 #1  0x4c4c4c4c4c4c4c4c in ?? ()
@@ -50,8 +50,8 @@ rbp            0x4b4b4b4b4b4b4b4b  0x4b4b4b4b4b4b4b4b
 #9  0x4c4c4c4c4c4c4c4c in ?? ()
 #10 0x4c4c4c4c4c4c4c4c in ?? ()
 #11 0x4c4c4c4c4c4c4c4c in ?? ()
-#12 0x58d9faa06d5d31f7 in ?? ()
-#13 0x4d9a0b9cb73f31f7 in ?? ()
+#12 0xb2b2951c77e4c708 in ?? ()
+#13 0xb3c662f82a26c708 in ?? ()
 #14 0x00007fff00000000 in ?? ()
 #15 0x0000000000000000 in ?? ()
 

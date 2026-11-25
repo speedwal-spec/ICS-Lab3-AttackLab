@@ -1,7 +1,8 @@
+gcc rc=0
 kernel.randomize_va_space = 2
-run 1: &i = 0x7fff1776b444
-run 2: &i = 0x7ffe79b0efa4
-run 3: &i = 0x7fffd57dbc54
-run 4: &i = 0x7ffddc5505a4
-run 5: &i = 0x7ffc1cc7d024
-run 6: &i = 0x7ffcda451904
+run 1: rc=0 &i = 0x7fff84a3f134
+run 2: rc=0 &i = 0x7ffe66e77d64
+run 3: rc=0 &i = 0x7fffaeda1d34
+run 4: rc=0 &i = 0x7ffc29bb25e4
+run 5: rc=0 &i = 0x7ffde42d7204
+run 6: rc=0 &i = 0x7ffc0f60cf74

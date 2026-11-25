@@ -2,9 +2,14 @@
 set pagination off
 set confirm off
 set disable-randomization off
-file ~/lab3/dark-calc
+python
+import os
+gdb.execute("file " + os.path.join(os.environ["ATTACKLAB_WORKDIR"], "dark-calc"))
+end
 break *main
-run < /tmp/lab3-inputs/shellcode.bin
+python
+gdb.execute("run < " + os.path.join(os.environ["ATTACKLAB_FIXTURE_DIR"], "shellcode.bin"))
+end
 printf "\n### at main(), called through __wrap_main on the fixed stack\n"
 info registers rip rbp rsp
 bt

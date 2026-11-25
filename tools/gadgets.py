@@ -54,11 +54,15 @@ def disasm(path, file_off, vaddr, count=20):
     try:
         with os.fdopen(fd, "wb") as fh:
             fh.write(code)
-        out = subprocess.run(
+        proc = subprocess.run(
             ["objdump", "-D", "-b", "binary", "-m", "i386:x86-64", "-M", "intel",
              f"--adjust-vma=0x{vaddr:x}", tmp],
             capture_output=True, text=True,
-        ).stdout
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"objdump failed for {path} at file offset 0x{file_off:x} "
+                               f"(rc={proc.returncode}):\n{proc.stderr.strip()}")
+        out = proc.stdout
     finally:
         os.unlink(tmp)
     return "\n".join(ln for ln in out.splitlines() if re.match(r"^\s*[0-9a-f]+:", ln))
@@ -68,12 +72,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("binary")
     ap.add_argument("patterns", nargs="+", help="hex byte patterns, e.g. 5fc3")
-    ap.add_argument("--window", type=int, default=24)
+    ap.add_argument("--window", type=int, default=24,
+                    help="bytes to disassemble after each match (positive)")
     args = ap.parse_args()
+    if args.window <= 0:
+        ap.error("--window must be positive")
 
     data, segs = load_segments(args.binary)
     for pat in args.patterns:
-        needle = bytes.fromhex(pat)
+        try:
+            needle = bytes.fromhex(pat)
+        except ValueError as exc:
+            ap.error(f"invalid hex pattern {pat!r}: {exc}")
+        if not needle:
+            ap.error("hex patterns must contain at least one byte")
         hits = [m.start() for m in re.finditer(re.escape(needle), data)]
         print(f"== {pat} ({len(hits)} hits) in {args.binary}")
         for off in hits:

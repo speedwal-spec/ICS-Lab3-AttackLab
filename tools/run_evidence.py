@@ -1,26 +1,32 @@
 #!/usr/bin/env python3
-"""Capture runtime evidence for the report.
+"""Capture runtime evidence for the report using an isolated attack/ copy.
 
-* CI-equivalent payload tests (generate with payload_*.py, feed to attack/*).
-* dark-calc input-length behaviour table.
-* ASLR demonstration built from src/aslr.c.
-* Running-kernel ASLR setting and toolchain versions.
-
-Writes analysis/logs/*.txt|json|md and prints a short summary.
+Every payload case must have a successful, non-empty generator and the expected
+string in target stdout. Target exit statuses are evidence only, as in the
+official CI check; they are not required to be zero.
 """
+import hashlib
 import json
 import os
+from pathlib import Path
 import platform
+import re
+import resource
 import shutil
+import stat
 import subprocess
+import sys
 import tempfile
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-ATTACK = os.path.join(ROOT, "attack")
-LOGS = os.path.join(ROOT, "analysis", "logs")
-LAB = os.path.expanduser("~/lab3")  # executable working copy
-
-os.makedirs(LOGS, exist_ok=True)
+ROOT = Path(__file__).resolve().parent.parent
+ATTACK = ROOT / "attack"
+LOGS = ROOT / "analysis" / "logs"
+OFFICIAL_HASHES = {
+    "dark-calc": "a9c3d4a5eed6a937e85884f6a53faa39613d49e04792e2c411620fcc74f79097",
+    "dark-calc-nx": "86c2c8dfaf4a89eb7a1396d9731bfb7ee085f0b45c86687b41547a30b5b1c613",
+    "dark-log": "9a4479f2a522d377055b54d328d5c0e0f3ca1327708ac792028ec03cadaee31d",
+    "malware": "03289add49f13e8573d125c8949bd88c9892e84f205802613a6baa2318fb18bc",
+}
 
 CASES = [
     ("payload.py", "dark-calc", "You have successfully detonated the bomb! Congratulations!"),
@@ -30,114 +36,231 @@ CASES = [
 ]
 
 
-def run_ci():
-    lines = ["# VirtualBox Ubuntu 24.04 CI-equivalent payload checks (matches .github/workflows/lab3-checks.yml)", ""]
+def atomic_write(path, text):
+    """Write text beside its destination, then atomically replace it."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=path.name + ".", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def prepare_attack(tmp):
+    """Verify official hashes before copying anything into an executable copy."""
+    for name, expected in OFFICIAL_HASHES.items():
+        path = ATTACK / name
+        actual = hashlib.sha256(path.read_bytes()).hexdigest()
+        if actual != expected:
+            raise RuntimeError(f"official SHA256 mismatch for attack/{name}: {actual}")
+
+    lab = Path(tmp) / "attack"
+    lab.mkdir()
+    for name in OFFICIAL_HASHES:
+        destination = lab / name
+        shutil.copy2(ATTACK / name, destination)
+        destination.chmod(destination.stat().st_mode | stat.S_IXUSR)
+    return lab
+
+
+def decode(data):
+    return (data or b"").decode("utf-8", "replace")
+
+
+def run_ci(lab, log_dir):
+    lines = ["# Isolated-copy equivalent of .github/workflows/lab3-checks.yml",
+             "# All four official SHA256 checks passed before execution.", ""]
+    resource.setrlimit(resource.RLIMIT_CORE,
+                       (0, resource.getrlimit(resource.RLIMIT_CORE)[1]))
     rows = []
-    with tempfile.TemporaryDirectory() as tmp:
-        for payload, target, expected in CASES:
-            gen = subprocess.run(["python3", os.path.join(ROOT, payload)],
-                                 capture_output=True, timeout=15)
+    for payload, target, expected in CASES:
+        row = {"payload": payload, "target": target, "bytes": 0,
+               "generator_rc": None, "target_rc": None,
+               "pass": False, "expected": expected}
+        gen = None
+        proc = None
+        error = None
+        data = b""
+        try:
+            env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
+            gen = subprocess.run([sys.executable, str(ROOT / payload)],
+                                 cwd=ROOT, capture_output=True, timeout=15, env=env)
+            row["generator_rc"] = gen.returncode
             data = gen.stdout
-            path = os.path.join(tmp, "payload.bin")
-            with open(path, "wb") as fh:
-                fh.write(data)
-            proc = subprocess.run([os.path.join(LAB, target)], stdin=open(path, "rb"),
-                                  cwd=LAB, capture_output=True, timeout=15,
-                                  env=dict(os.environ, TERM="xterm"))
-            ok = expected.encode() in proc.stdout
-            rows.append({
-                "payload": payload, "target": target, "bytes": len(data),
-                "generator_rc": gen.returncode, "target_rc": proc.returncode,
-                "pass": ok, "expected": expected,
-            })
-            lines += [
-                f"== {payload} -> attack/{target}",
-                f"generated bytes: {len(data)}  generator rc: {gen.returncode}",
-                f"target exit status: {proc.returncode}  PASS={ok}",
-                "--- stdout ---",
-                proc.stdout.decode("utf-8", "replace").rstrip(),
-                "--- stderr ---",
-                proc.stderr.decode("utf-8", "replace").rstrip(),
-                "",
-            ]
-    text = "\n".join(lines)
-    with open(os.path.join(LOGS, "ci_simulation.txt"), "w", encoding="utf-8") as fh:
-        fh.write(text + "\n")
-    with open(os.path.join(LOGS, "ci_simulation.json"), "w", encoding="utf-8") as fh:
-        json.dump(rows, fh, indent=2, ensure_ascii=False)
+            row["bytes"] = len(data)
+            if gen.returncode != 0:
+                error = f"generator failed (rc={gen.returncode})"
+            elif not data:
+                error = "generator wrote no bytes"
+            else:
+                try:
+                    proc = subprocess.run([str(lab / target)], input=data,
+                                          cwd=lab, capture_output=True, timeout=15,
+                                          env=dict(os.environ, TERM="xterm"))
+                    row["target_rc"] = proc.returncode
+                except subprocess.TimeoutExpired as exc:
+                    error = "target timed out after 15s"
+                    proc = exc
+                except OSError as exc:
+                    error = f"target could not run: {exc}"
+        except subprocess.TimeoutExpired as exc:
+            gen = exc
+            error = "generator timed out after 15s"
+        except OSError as exc:
+            error = f"generator could not run: {exc}"
+
+        # Match the official stdout predicate. Target exit status is evidence
+        # only; original-task crashes are recorded but not an extra failure.
+        row["pass"] = (row["generator_rc"] == 0 and bool(data) and proc is not None
+                       and expected.encode() in (proc.stdout or b""))
+        if error:
+            row["error"] = error
+        rows.append(row)
+        lines += [f"== {payload} -> attack/{target}",
+                  f"generated bytes: {row['bytes']}  generator rc: {row['generator_rc']}",
+                  f"target exit status: {row['target_rc']}  PASS={row['pass']}"]
+        if error:
+            lines.append("error: " + error)
+        if gen is not None and gen.stderr:
+            lines += ["--- generator stderr ---", decode(gen.stderr).rstrip()]
+        lines += ["--- stdout ---", decode(proc.stdout if proc is not None else b"").rstrip(),
+                  "--- stderr ---", decode(proc.stderr if proc is not None else b"").rstrip(), ""]
+
+    atomic_write(Path(log_dir) / "ci_simulation.txt", "\n".join(lines) + "\n")
+    atomic_write(Path(log_dir) / "ci_simulation.json",
+                 json.dumps(rows, indent=2, ensure_ascii=False) + "\n")
     return rows
 
 
-def run_lengths():
+def run_lengths(lab, log_dir):
     lengths = [0, 1, 3, 8, 15, 16, 20, 23, 24, 31, 32, 47, 48, 64, 200]
     rows = []
     for n in lengths:
         data = b"1" * n + b"\n"
-        proc = subprocess.run([os.path.join(LAB, "dark-calc")], input=data,
-                              cwd=LAB, capture_output=True, timeout=10)
-        out = proc.stdout.decode("utf-8", "replace")
+        proc = subprocess.run([str(lab / "dark-calc")], input=data,
+                              cwd=lab, capture_output=True, timeout=10)
         rows.append({"length": n, "rc": proc.returncode,
-                     "stdout": out, "stderr": proc.stderr.decode("utf-8", "replace")})
+                     "stdout": decode(proc.stdout), "stderr": decode(proc.stderr)})
     md = ["| 输入长度 | 退出状态 | stdout 摘要 |", "|---:|---:|---|"]
     for row in rows:
         summary = " / ".join(row["stdout"].strip().splitlines())[:150].replace("|", "\\|")
         md.append(f"| {row['length']} | {row['rc']} | {summary} |")
-    with open(os.path.join(LOGS, "length_tests.md"), "w", encoding="utf-8") as fh:
-        fh.write("\n".join(md) + "\n")
-    with open(os.path.join(LOGS, "length_tests.json"), "w", encoding="utf-8") as fh:
-        json.dump(rows, fh, indent=2, ensure_ascii=False)
+    atomic_write(Path(log_dir) / "length_tests.md", "\n".join(md) + "\n")
+    atomic_write(Path(log_dir) / "length_tests.json",
+                 json.dumps(rows, indent=2, ensure_ascii=False) + "\n")
     return rows
 
 
-def run_aslr():
+def run_aslr(log_dir):
     lines = []
-    env = dict(os.environ)
-    src = os.path.join(ROOT, "src", "aslr.c")
-    exe = os.path.join(tempfile.gettempdir(), "lab3_aslr")
-    cc = subprocess.run(["gcc", "-O0", "-o", exe, src], capture_output=True, text=True)
-    if cc.returncode != 0:
-        lines.append("gcc failed: " + cc.stderr)
-    else:
-        lines.append(f"kernel.randomize_va_space = {open('/proc/sys/kernel/randomize_va_space').read().strip()}")
+    src = ROOT / "src" / "aslr.c"
+    with tempfile.TemporaryDirectory(prefix="attacklab-aslr-") as tmp:
+        exe = Path(tmp) / "aslr"
+        cc = subprocess.run(["gcc", "-O0", "-o", str(exe), str(src)],
+                            capture_output=True, text=True, timeout=15)
+        if cc.returncode != 0:
+            raise RuntimeError(f"ASLR compilation failed (rc={cc.returncode}):\n{cc.stderr}")
+        lines.append("gcc rc=0")
+        lines.append("kernel.randomize_va_space = "
+                     + Path("/proc/sys/kernel/randomize_va_space").read_text().strip())
         for i in range(6):
-            p = subprocess.run([exe], capture_output=True, text=True, env=env)
-            lines.append(f"run {i + 1}: &i = {p.stdout.strip()}")
-    text = "\n".join(lines)
-    with open(os.path.join(LOGS, "aslr.txt"), "w", encoding="utf-8") as fh:
-        fh.write(text + "\n")
+            proc = subprocess.run([str(exe)], capture_output=True, text=True, timeout=10)
+            if proc.returncode != 0 or not proc.stdout.strip():
+                raise RuntimeError(f"ASLR run {i + 1} failed (rc={proc.returncode}): "
+                                   f"{proc.stderr.strip()}")
+            lines.append(f"run {i + 1}: rc=0 &i = {proc.stdout.strip()}")
+    text = "\n".join(lines) + "\n"
+    atomic_write(Path(log_dir) / "aslr.txt", text)
     return text
 
 
 def versions():
     def cap(cmd):
-        try:
-            p = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            return (p.stdout or p.stderr).strip().splitlines()[0]
-        except Exception as exc:  # pragma: no cover
-            return str(exc)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        output = (proc.stdout or proc.stderr).strip()
+        if proc.returncode != 0 or not output:
+            raise RuntimeError(f"{' '.join(cmd)} failed (rc={proc.returncode}): {output}")
+        return output.splitlines()[0]
+
+    distro = "unknown"
+    for line in Path("/etc/os-release").read_text().splitlines():
+        if line.startswith("PRETTY_NAME="):
+            distro = line.split("=", 1)[1].strip().strip('"')
+            break
+    gdb = subprocess.run(["gdb", "-q", "-nx", "-batch", "-ex",
+                          "show disable-randomization"],
+                         capture_output=True, text=True, timeout=10)
+    gdb_output = (gdb.stdout + gdb.stderr).strip()
+    match = re.search(r"\bis\s+(on|off|auto)\b", gdb_output, re.IGNORECASE)
+    if gdb.returncode != 0 or match is None:
+        raise RuntimeError("could not query GDB default disable-randomization: " + gdb_output)
     return {
         "uname": platform.uname().release,
-        "distro": cap(["bash", "-lc", "cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2"]),
+        "distro": distro,
         "gcc": cap(["gcc", "--version"]),
         "gdb": cap(["gdb", "--version"]),
         "python": cap(["python3", "--version"]),
-        "libc": cap(["bash", "-lc", "ldd --version | head -1"]),
+        "libc": cap(["ldd", "--version"]),
         "objdump": cap(["objdump", "--version"]),
-        "aslr": open("/proc/sys/kernel/randomize_va_space").read().strip(),
-        "gdb_default_disable_randomization": "on",
+        "aslr": Path("/proc/sys/kernel/randomize_va_space").read_text().strip(),
+        "gdb_default_disable_randomization": match.group(1).lower(),
+        "gdb_disable_randomization_query": gdb_output,
     }
 
 
+LOG_NAMES = ("ci_simulation.txt", "ci_simulation.json", "length_tests.md",
+             "length_tests.json", "aslr.txt", "environment.json")
+
+
+def remove_stale_logs():
+    for name in LOG_NAMES:
+        try:
+            (LOGS / name).unlink()
+        except FileNotFoundError:
+            pass
+        except OSError as exc:
+            print(f"could not remove stale {LOGS / name}: {exc}", file=sys.stderr)
+
+
 def main():
-    rows = run_ci()
-    lengths = run_lengths()
-    aslr = run_aslr()
-    with open(os.path.join(LOGS, "environment.json"), "w", encoding="utf-8") as fh:
-        json.dump(versions(), fh, indent=2, ensure_ascii=False)
-    print("CI:", ", ".join(f"{r['payload']}={r['pass']}" for r in rows))
-    print("length rows:", len(lengths))
-    print(aslr)
+    LOGS.mkdir(parents=True, exist_ok=True)
+    log_dir = Path(tempfile.mkdtemp(prefix="attacklab-evidence-"))
+    try:
+        lab_dir = log_dir / "isolated"
+        lab_dir.mkdir()
+        lab = prepare_attack(lab_dir)
+        rows = run_ci(lab, log_dir)
+        lengths = run_lengths(lab, log_dir)
+        aslr = run_aslr(log_dir)
+        atomic_write(log_dir / "environment.json",
+                     json.dumps(versions(), indent=2, ensure_ascii=False) + "\n")
+        ok = len(rows) == len(CASES) and all(row["pass"] for row in rows)
+        print("CI:", ", ".join(f"{r['payload']}={r['pass']}" for r in rows))
+        print("length rows:", len(lengths))
+        print(aslr, end="")
+        print("RESULT:", "PASS" if ok else "FAIL")
+        if not ok:
+            remove_stale_logs()
+            return 1
+        # Every check and write completed before any delivered log is replaced.
+        for name in LOG_NAMES:
+            atomic_write(LOGS / name, (log_dir / name).read_text(encoding="utf-8"))
+        return 0
+    except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
+        print(f"run_evidence: {exc}", file=sys.stderr)
+        remove_stale_logs()
+        print("RESULT: FAIL", file=sys.stderr)
+        return 1
+    finally:
+        shutil.rmtree(log_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

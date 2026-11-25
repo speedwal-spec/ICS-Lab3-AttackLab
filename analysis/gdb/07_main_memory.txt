@@ -1,0 +1,32 @@
+Breakpoint 1 at 0x401ac3
+[Thread debugging using libthread_db enabled]
+Using host libthread_db library "/lib/x86_64-linux-gnu/libthread_db.so.1".
+
+Breakpoint 1, 0x0000000000401ac3 in main ()
+
+### x/9bx main: bytes in increasing virtual-memory addresses
+0x401ac3 <main>:	0x55	0x48	0x89	0xe5	0xb8	0x00	0x00	0x00
+0x401acb <main+8>:	0x00
+[0x401ac3,0x401ac4)  push rbp: 55
+[0x401ac4,0x401ac7)  mov rbp,rsp: 48 89 e5
+[0x401ac7,0x401acc)  mov eax,0: b8 00 00 00 00
+
+### step the first three main instructions
+=> 0x401ac3 <main>:	push   %rbp
+   0x401ac4 <main+1>:	mov    %rsp,%rbp
+   0x401ac7 <main+4>:	mov    $0x0,%eax
+rip            0x401ac3            0x401ac3 <main>
+rbp            0x7ffe33a3f5a0      0x7ffe33a3f5a0
+rsp            0x721000800ff8      0x721000800ff8
+0x0000000000401ac4 in main ()
+rip            0x401ac4            0x401ac4 <main+1>
+rbp            0x7ffe33a3f5a0      0x7ffe33a3f5a0
+rsp            0x721000800ff0      0x721000800ff0
+0x0000000000401ac7 in main ()
+rip            0x401ac7            0x401ac7 <main+4>
+rbp            0x721000800ff0      0x721000800ff0
+rsp            0x721000800ff0      0x721000800ff0
+0x0000000000401acc in main ()
+rip            0x401acc            0x401acc <main+9>
+rbp            0x721000800ff0      0x721000800ff0
+rsp            0x721000800ff0      0x721000800ff0

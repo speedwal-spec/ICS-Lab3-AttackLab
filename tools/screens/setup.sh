@@ -1,11 +1,14 @@
-#!/bin/bash
-# Prepare the fixtures the five capture scenes expect (run once per guest boot).
-set -u
-cd "$(dirname "$0")/../.." || exit 1
+#!/usr/bin/env bash
+# Prepare current fixtures for the five capture scenes.  Existing directories
+# are verified and reused; a fresh default is an isolated mktemp work copy.
+source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
+attacklab_prepare
+printf 'ABCDEFGH\n' > "$ATTACKLAB_FIXTURE_DIR/eight.bin"
 python3 tools/make_inputs.py
-rm -rf "$HOME/lab3" && mkdir -p "$HOME/lab3"
-cp attack/* "$HOME/lab3/"
-chmod +x "$HOME/lab3"/*
-python3 payload_canary.py > /tmp/lab3-inputs/canary.bin
-python3 payload.py > /tmp/lab3-inputs/p5.bin
-ls -l "$HOME/lab3" /tmp/lab3-inputs/eight.bin
+python3 payload_canary.py > "$ATTACKLAB_FIXTURE_DIR/canary.bin"
+python3 payload.py > "$ATTACKLAB_FIXTURE_DIR/p5.bin"
+printf 'ATTACKLAB_WORKDIR=%s\nATTACKLAB_FIXTURE_DIR=%s\n' \
+    "$ATTACKLAB_WORKDIR" "$ATTACKLAB_FIXTURE_DIR"
+ls -l -- "$ATTACKLAB_WORKDIR/dark-calc" "$ATTACKLAB_WORKDIR/dark-calc-nx" \
+    "$ATTACKLAB_WORKDIR/dark-log" "$ATTACKLAB_WORKDIR/malware" \
+    "$ATTACKLAB_FIXTURE_DIR/eight.bin"

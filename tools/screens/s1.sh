@@ -1,12 +1,13 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Scene 1: input()'s frame on dark-calc's fixed stack.
-set -u
-cd "$(dirname "$0")/../.." || exit 1
-gdb -q -batch "$HOME/lab3/dark-calc" \
+source "$(dirname -- "${BASH_SOURCE[0]}")/common.sh"
+attacklab_prepare
+printf 'ABCDEFGH\n' > "$ATTACKLAB_FIXTURE_DIR/eight.bin"
+gdb -q -nx -batch "$ATTACKLAB_WORKDIR/dark-calc" \
   -ex 'set pagination off' \
   -ex 'set disable-randomization off' \
   -ex 'break *input' \
-  -ex 'run < /tmp/lab3-inputs/eight.bin' \
+  -ex "run < $ATTACKLAB_FIXTURE_DIR/eight.bin" \
   -ex 'printf "entry       : rbp=%#lx  rsp=%#lx\n", $rbp, $rsp' \
   -ex 'nexti' -ex 'nexti' -ex 'nexti' \
   -ex 'printf "after prolog: rbp=%#lx  rsp=%#lx\n", $rbp, $rsp' \

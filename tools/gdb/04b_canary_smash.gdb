@@ -2,9 +2,14 @@
 set pagination off
 set confirm off
 set disable-randomization off
-file ~/lab3/dark-log
+python
+import os
+gdb.execute("file " + os.path.join(os.environ["ATTACKLAB_WORKDIR"], "dark-log"))
+end
 break *input
-run < /tmp/lab3-inputs/smash.bin
+python
+gdb.execute("run < " + os.path.join(os.environ["ATTACKLAB_FIXTURE_DIR"], "smash.bin"))
+end
 nexti
 nexti
 nexti

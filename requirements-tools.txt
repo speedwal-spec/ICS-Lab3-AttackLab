@@ -1,0 +1,8 @@
+# Optional local report-building and document-checking tools.
+# The four payload generators require only Python 3's standard library.
+python-docx>=1.1,<2
+pypdf>=5
+
+# System tools used by the optional evidence/report workflow (Ubuntu packages):
+#   gdb binutils gcc libreoffice psmisc procps coreutils
+# Runtime targets are the supplied Linux x86-64 course binaries, not rebuilds of src/.

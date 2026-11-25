@@ -2,9 +2,14 @@
 set pagination off
 set confirm off
 set disable-randomization off
-file ~/lab3/dark-log
+python
+import os
+gdb.execute("file " + os.path.join(os.environ["ATTACKLAB_WORKDIR"], "dark-log"))
+end
 break *input
-run < /tmp/lab3-inputs/canary.bin
+python
+gdb.execute("run < " + os.path.join(os.environ["ATTACKLAB_FIXTURE_DIR"], "canary.bin"))
+end
 printf "\n### input() entry\n"
 info registers rbp rsp
 printf "\n### step the prologue and the canary store\n"

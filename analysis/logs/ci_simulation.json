@@ -4,7 +4,7 @@
     "target": "dark-calc",
     "bytes": 33,
     "generator_rc": 0,
-    "target_rc": -7,
+    "target_rc": 0,
     "pass": true,
     "expected": "You have successfully detonated the bomb! Congratulations!"
   },
