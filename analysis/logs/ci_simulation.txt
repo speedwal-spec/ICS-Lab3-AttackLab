@@ -10,7 +10,7 @@ target exit status: 0  PASS=True
   `-[1msshd,1352[0m
       `-[1msshd,8795[0m
           `-[1msshd,8898[0m
-              `-[1mbash,8903[0m -c cd /tmp/attacklab-repair-current && bash tools/capture_gdb.sh && python3 tools/run_evidence.py && printf GDB_AND_EVIDENCE_COMPLETE\\n
+              `-[1mbash,8903[0m -c cd /tmp/attacklab-capture && bash tools/capture_gdb.sh && python3 tools/run_evidence.py && printf GDB_AND_EVIDENCE_COMPLETE\\n
                   `-[1mpython3,9034[0m tools/run_evidence.py
                       `-[1mdark-calc,9036[0m
                           `-[1msh,9037[0m -c -- ./malware

@@ -18,7 +18,7 @@ Breakpoint 2 at 0x401a75
   `-[1msshd,1352[0m
       `-[1msshd,8795[0m
           `-[1msshd,8898[0m
-              `-[1mbash,8903[0m -c cd /tmp/attacklab-repair-current && bash tools/capture_gdb.sh && python3 tools/run_evidence.py && printf GDB_AND_EVIDENCE_COMPLETE\\n
+              `-[1mbash,8903[0m -c cd /tmp/attacklab-capture && bash tools/capture_gdb.sh && python3 tools/run_evidence.py && printf GDB_AND_EVIDENCE_COMPLETE\\n
                   `-[1mbash,8904[0m tools/capture_gdb.sh
                       `-[1mtimeout,8994[0m 30s gdb -q -nx -batch -x tools/gdb/05_system_epilogue.gdb
                           `-[1mgdb,8995[0m -q -nx -batch -x tools/gdb/05_system_epilogue.gdb

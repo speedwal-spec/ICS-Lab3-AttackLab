@@ -11,7 +11,7 @@ sh: 1: arithmetic expression: expecting primary: "
   `-[1msshd,1352[0m
       `-[1msshd,9778[0m
           `-[1msshd,9821[0m
-              `-[1mbash,9822[0m -c set -eu; cd /tmp/attacklab-repair-current; python3 tools/capture_command_substitution.py; bash tools/capture_gdb.sh; printf OBSERVATION_CAPTURE_COMPLETE\\n
+              `-[1mbash,9822[0m -c set -eu; cd /tmp/attacklab-capture; python3 tools/capture_command_substitution.py; bash tools/capture_gdb.sh; printf OBSERVATION_CAPTURE_COMPLETE\\n
                   `-[1mpython3,9823[0m tools/capture_command_substitution.py
                       `-[1mdark-calc,9824[0m
                           `-[1msh,9825[0m -c -- echo $(($(./malware)))
